@@ -1,0 +1,1 @@
+- [Example: prefers broken-down commands](example-command-style.md) — give shell commands as simple sequential steps, not one flag-stacked one-liner
