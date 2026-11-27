@@ -165,7 +165,7 @@ those files control Claude's behaviour, so changing them always needs your click
    hook were not loaded, this would just fail, because the folder has no remote.)
 
 Optional, for the curious: `node test/smoke.mjs` runs an end-to-end test in a throwaway
-folder (your real setup is untouched). It should print `49 passed, 0 failed`.
+folder (your real setup is untouched). It should print `50 passed, 0 failed`.
 
 ---
 

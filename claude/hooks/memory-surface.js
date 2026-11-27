@@ -85,6 +85,9 @@ function getPrompt(raw) {
 }
 
 function parseFrontmatter(text) {
+  // Normalise Windows line endings (and a BOM) first: with CRLF, `(.*)$` stops before
+  // the \r and no frontmatter line matches, so every memory silently never fires.
+  text = text.replace(/^﻿/, '').replace(/\r\n?/g, '\n');
   if (!text.startsWith('---')) return { fm: {}, body: text };
   const end = text.indexOf('\n---', 3);
   if (end === -1) return { fm: {}, body: text };

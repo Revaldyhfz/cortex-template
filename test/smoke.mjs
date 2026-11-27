@@ -119,6 +119,12 @@ ok(note2.includes("second turn") && fs.readdirSync(path.join(VAULT, "Cortex", "S
 // ---- memory surfacing
 r = hook("hooks/memory-surface.js", { prompt: "what terminal command should I run for this?" });
 ok(r.stdout.includes("example-command-style"), "memory-surface injects a matching memory", r.stdout.slice(0, 200));
+fs.writeFileSync(
+  path.join(CLAUDE, "memory", "crlf-test.md"),
+  "---\r\nname: crlf-test\r\ndescription: zebra pancake fixture\r\nmetadata:\r\n  type: user\r\n---\r\n\r\nCRLF body.\r\n"
+);
+r = hook("hooks/memory-surface.js", { prompt: "zebra pancake please" });
+ok(r.stdout.includes("CRLF body."), "memory-surface reads Windows (CRLF) memory files", r.stdout.slice(0, 200));
 r = hook("hooks/memory-surface.js", { prompt: "tell me a joke" });
 ok(r.stdout === "", "memory-surface silent when nothing matches");
 
