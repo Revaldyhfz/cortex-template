@@ -49,7 +49,18 @@ vs.unref();
 
 // The extension writes sidekick.json on activation; wait for it.
 const conn = path.join(claudeDir, "cortex", "sidekick.json");
-for (let i = 0; i < 90 && !fs.existsSync(conn); i++) await new Promise((r) => setTimeout(r, 1000));
+for (let i = 0; i < 120 && !fs.existsSync(conn); i++) await new Promise((r) => setTimeout(r, 1000));
+if (!fs.existsSync(conn)) {
+  // The extension never activated. Show VS Code's own logs so the cause is visible.
+  console.log("FAIL  the extension did not activate within 120s (no sidekick.json). VS Code logs:");
+  const logs = path.join(userData, "logs");
+  const files = fs.existsSync(logs) ? (fs.readdirSync(logs, { recursive: true }) || []).map(String).filter((f) => f.endsWith(".log")) : [];
+  if (!files.length) console.log("  (no VS Code logs at all: the window probably never started)");
+  for (const f of files.filter((f) => /exthost|main|renderer|sharedprocess/i.test(f)).slice(0, 6)) {
+    const body = fs.readFileSync(path.join(logs, f), "utf8").split("\n").slice(-25).join("\n");
+    console.log(`--- ${f}\n${body}`);
+  }
+}
 const r = spawnSync(process.execPath, [path.join(EXT, "test", "e2e.mjs"), claudeDir, ws], { stdio: "inherit", env });
 
 if (!process.argv.includes("--keep-open")) {

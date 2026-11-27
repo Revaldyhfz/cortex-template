@@ -363,6 +363,27 @@ footer p { margin: 0; }
       <div><dt><code>/aw</code></dt><dd>Keeps working through a queue while you're away. Never pushes, spends or deletes; parks decisions for you in <code>BLOCKERS.md</code>.</dd></div>
       <div><dt><code>/studio</code></dt><dd>Runs a big task like a small company: research, a lead per team, independent reviewers, one plan.</dd></div>
     </dl>
+
+    <h3>Tools Claude can use</h3>
+    <dl class="items">
+      <div><dt>reels</dt><dd>Paste an Instagram reel, TikTok or YouTube Short link and Claude watches it: caption, a timestamped transcript and a grid of frames. No login.</dd></div>
+      <div><dt>Playwright</dt><dd>A browser Claude drives by itself, for testing your web app or reading a page that needs clicks.</dd></div>
+      <div><dt>context7</dt><dd>Up-to-date library documentation, so code matches the version you actually use.</dd></div>
+      <div><dt>GitHub</dt><dd>Issues, pull requests and code search. Needs the GitHub CLI, logged in once with <code>gh auth login</code>.</dd></div>
+      <div><dt>Updates</dt><dd>At the start of a session Claude checks GitHub for a newer Cortex. If there is one, it tells you and installs only when you say yes.</dd></div>
+    </dl>
+    <p class="section-intro">Registered just now: {{TOOLS_STATUS}}</p>
+  </section>
+
+  <section aria-labelledby="switch-on">
+    <h2 id="switch-on">Switch on in the Claude app</h2>
+    <p class="section-intro">These come with Claude itself, so the installer cannot turn them on. Each takes a minute, once. Ask Claude "help me turn on Claude in Chrome" and it will walk you through.</p>
+    <dl class="items">
+      <div><dt>Claude in Chrome</dt><dd>Claude works in your own Chrome, with your logins: reading pages, filling forms, testing your site. Install the Claude extension from the Chrome Web Store, then sign in.</dd></div>
+      <div><dt>Computer use</dt><dd>Claude can see your screen and use desktop apps. Turn it on in the Claude desktop app, then allow it in macOS System Settings under Privacy &amp; Security (Accessibility and Screen Recording). It asks before using each app.</dd></div>
+      <div><dt>Built-in browser</dt><dd>A browser pane inside the Claude desktop app, for previewing what you build. Nothing to install.</dd></div>
+      <div><dt>Connectors</dt><dd>Gmail, Google Drive, Calendar and others, through your own account at claude.ai under Settings, then Connectors.</dd></div>
+    </dl>
   </section>
 
   <section aria-labelledby="where">

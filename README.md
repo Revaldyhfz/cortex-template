@@ -81,7 +81,7 @@ curl -fsSL https://claude.ai/install.sh | bash
 ```
 
 ```bash
-brew install node git
+brew install node git uv gh
 ```
 
 (No Homebrew? Get Node from <https://nodejs.org> and run `xcode-select --install` for git.)
@@ -152,7 +152,7 @@ Want to see what it would do first? Add `--dry-run`. It changes nothing.
 
 - Copies rules, skills, hooks and the capture engine into `~/.claude/`.
 - Creates the vault folders (`Cortex/Sessions`, `Cortex/States`, `Cortex/Knowledge`).
-- **Merges** nine hook entries into `~/.claude/settings.json` after backing it up. It never
+- **Merges** ten hook entries into `~/.claude/settings.json` after backing it up. It never
   replaces your existing settings or hooks.
 - **Never overwrites** a file you already have. If you already have a `~/.claude/CLAUDE.md`,
   the template is saved next to it as `CLAUDE.md.cortex-new` for you to merge.
@@ -204,7 +204,7 @@ those files control Claude's behaviour, so changing them always needs your click
    hook were not loaded, this would just fail, because the folder has no remote.)
 
 Optional, for the curious: `node test/smoke.mjs` runs an end-to-end test in a throwaway
-folder (your real setup is untouched). It should print `65 passed, 0 failed`. It uses fake `code` and `claude` commands, so
+folder (your real setup is untouched). It should print `77 passed, 0 failed`. It uses fake `code` and `claude` commands, so
 your real VS Code and Claude settings are untouched.
 
 ---
@@ -304,6 +304,7 @@ when it applies.
 | `/personalise` | Right after installing: fills in your profile by detecting what it can and asking the rest. |
 | `/aw <hours>` | You're stepping away and want work to continue. Write tasks in a `QUEUE.md`; Claude works through them until the deadline, then reports. `/aw off` stops it. |
 | `/studio` | Project-sized work: a build, a redesign, an audit, research that decides weeks of work. Uses many subagents, so it costs more. |
+| `/update-cortex` | A new version is out (Claude tells you at session start), or you ask "update cortex". |
 | `/council` | A real either/or decision where you don't trust a single confident answer. Uses 6–11 subagents, so it costs more. |
 
 ### Hooks (`~/.claude/hooks/` and `~/.claude/cortex/`)
@@ -319,9 +320,37 @@ Hooks are scripts Claude Code runs automatically at certain moments. They're reg
 | `context-watch.js` | after every tool call (`PostToolUse`) | Warns at 50/70/85% of the context window, and on 5 identical tool calls in a row. |
 | `sidekick-notify.js` | before and after Claude writes a file (`PreToolUse` / `PostToolUse`) | Tells the VS Code Sidekick which file is about to change and when it changed, so it can open it with exact highlights and an exact Revert. Silent when VS Code is closed. |
 | `autonomous.js` | after every reply (`Stop`) | Only while `/aw` is armed: keeps the session going until the deadline, the turn cap, or a verifiably empty queue. Never traps a session: any error lets it stop. |
+| `update-check.js` | when a session starts (`SessionStart`, `startup`) | Every 6 hours at most, a quick `git fetch` in the folder you installed from. If GitHub has newer commits, Claude mentions it once and offers `/update-cortex`. Read-only: never pulls by itself. |
 | `post-compact.js` | after the conversation is compacted (`SessionStart`, `compact`) | Lists the files this session already changed, so Claude doesn't redo finished work. |
 
 Every hook is written to **never break your session**: on any error it exits quietly.
+
+---
+
+## Tools Claude gets
+
+The installer registers four tool servers for every project. Any you already have under the
+same name are left as they are.
+
+| Tool | What it's for | Needs |
+|---|---|---|
+| **reels** | Paste an Instagram reel, TikTok, YouTube Short or X video link: Claude gets the caption, a timestamped transcript and a grid of 14 frames, and can pull full-size frames to read small on-screen text. | `uv` (`brew install uv`). The first setup downloads Python and Whisper (a few minutes). On a Mac it transcribes on the CPU with the `small` model, about 30 s for a short reel. Repeat views are instant from the cache at `~/.cache/cortex-reels`. |
+| **Playwright** | A separate browser Claude drives itself: test your web app, read pages that need clicks, take screenshots. | Node (already required). |
+| **context7** | Current documentation for any library, so code matches the version you have. | Nothing. |
+| **GitHub** | Issues, pull requests, code search. | The GitHub CLI, logged in once: `gh auth login`. The token is fetched at connect time and never stored in a config file. |
+
+Reels never uses your browser's logins by default, and that's deliberate: scraping while
+logged in can get an Instagram account banned. Public reels need no login.
+
+**Switch these on in the Claude app.** They come with Claude itself, so no installer can
+turn them on. Ask Claude "help me turn on Claude in Chrome", and it will walk you through.
+
+| Feature | What it does | How |
+|---|---|---|
+| **Claude in Chrome** | Claude works in your real Chrome with your logins: reading pages, filling forms, checking your site. | Install the Claude extension from the Chrome Web Store, sign in, then choose it as the preferred browser in the Claude app's settings. |
+| **Computer use** | Claude sees your screen and uses desktop apps. It asks before touching each app. | Turn it on in the Claude desktop app's settings. On a Mac, also allow it under System Settings → Privacy & Security → **Accessibility** and **Screen Recording**. |
+| **Built-in browser** | A browser pane inside the Claude desktop app, for previewing what you build. | Nothing. It is part of the desktop app. |
+| **Connectors** | Gmail, Google Drive, Calendar and more, using your own account. | claude.ai → Settings → Connectors. |
 
 ---
 
@@ -383,8 +412,18 @@ password: anyone with it can run commands in your VS Code.
 
 ## Updating
 
-Pull the repo and run the installer again. Unchanged files are skipped; files you've edited
-get a `.cortex-new` copy beside them to merge by hand.
+**You don't have to remember.** At the start of a session, Claude checks GitHub for a newer
+version (at most every 6 hours, and only reading). When there is one, it tells you in one line
+and asks. Say **yes** and the `update-cortex` skill does the rest:
+1. it shows what changed;
+2. it reads the new code before running it;
+3. it pulls and re-installs, keeping your edits;
+4. it runs the tests.
+
+It never updates without your yes, because an update runs new code on your machine.
+
+By hand, it's the same two commands. Unchanged files are skipped; files you've edited get a
+`.cortex-new` copy beside them to merge.
 
 ```bash
 git pull

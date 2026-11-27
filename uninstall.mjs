@@ -35,7 +35,7 @@ try {
 }
 
 // 1. settings.json: drop only the hook entries that point at Cortex scripts.
-const OURS = ["cortex-sync.js", "guardrail.js", "context-watch.js", "post-compact.js", "memory-surface.js", "sidekick-notify.js", "autonomous.js"];
+const OURS = ["cortex-sync.js", "guardrail.js", "context-watch.js", "post-compact.js", "memory-surface.js", "sidekick-notify.js", "autonomous.js", "update-check.js"];
 const settingsPath = path.join(CLAUDE, "settings.json");
 let removedHooks = 0;
 if (fs.existsSync(settingsPath)) {
@@ -71,6 +71,7 @@ function sh(cmd, argv) {
 }
 const external = [];
 if (manifest.mcpServer) external.push(`MCP server "vscode": ${DRY ? "would remove" : sh(manifest.claudeBin || "claude", ["mcp", "remove", "vscode", "-s", "user"]) ? "removed" : "could not remove (run: claude mcp remove vscode -s user)"}`);
+for (const name of manifest.mcpAdded || []) external.push(`MCP server "${name}": ${DRY ? "would remove" : sh(manifest.claudeBin || "claude", ["mcp", "remove", name, "-s", "user"]) ? "removed" : `could not remove (run: claude mcp remove ${name} -s user)`}`);
 if (manifest.vscodeExtension) external.push(`VS Code extension: ${DRY ? "would remove" : sh(manifest.codeBin || "code", ["--uninstall-extension", "cortex-template.cortex-sidekick"]) ? "removed" : "could not remove (run: code --uninstall-extension cortex-template.cortex-sidekick)"}`);
 
 // 3. Move every file the installer created, plus the engine's own state folder.
@@ -90,7 +91,7 @@ const move = (abs) => {
 // per-file moves below never pre-create its destination.
 move(path.join(CLAUDE, "cortex"));
 for (const f of manifest.files || []) move(path.resolve(f));
-for (const d of ["skills/boot", "skills/save-state", "skills/prompt", "skills/research", "skills/council", "skills/studio", "skills/aw", "skills/personalise", "autonomous"]) {
+for (const d of ["skills/boot", "skills/save-state", "skills/prompt", "skills/research", "skills/council", "skills/studio", "skills/aw", "skills/personalise", "skills/update-cortex", "mcp", "autonomous"]) {
   const dir = path.join(CLAUDE, d);
   try {
     if (!DRY && fs.existsSync(dir) && !fs.readdirSync(dir).length) fs.rmdirSync(dir);

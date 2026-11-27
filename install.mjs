@@ -9,6 +9,8 @@
  *   node install.mjs --force               # overwrite files that already exist (backups are still made)
  *   node install.mjs --no-vscode           # skip the VS Code Sidekick (extension + MCP registration)
  *   node install.mjs --no-open             # do not open the welcome page at the end
+ *   node install.mjs --no-tools            # skip registering the tool servers (Playwright, context7, GitHub, reels)
+ *   node install.mjs --no-reels            # skip only the reels tool (it downloads Python + Whisper)
  *
  * Safe by default:
  *   - An existing file with different content is NOT overwritten. The template version is
@@ -42,6 +44,8 @@ const DRY = flag("--dry-run");
 const FORCE = flag("--force");
 const NO_VSCODE = flag("--no-vscode");
 const NO_OPEN = flag("--no-open");
+const NO_TOOLS = flag("--no-tools");
+const NO_REELS = flag("--no-reels");
 const HOME = os.homedir();
 const CLAUDE = process.env.CLAUDE_CONFIG_DIR || path.join(HOME, ".claude");
 const expandHome = (p) => (p.startsWith("~") ? path.join(HOME, p.slice(1)) : p);
@@ -212,6 +216,7 @@ const WANT = [
   { event: "PreToolUse", matcher: "Write|Edit|MultiEdit|NotebookEdit", script: "hooks/sidekick-notify.js", timeout: 5 },
   { event: "PostToolUse", matcher: "Write|Edit|MultiEdit|NotebookEdit", script: "hooks/sidekick-notify.js", timeout: 5 },
   { event: "SessionStart", matcher: "compact", script: "hooks/post-compact.js", timeout: 10 },
+  { event: "SessionStart", matcher: "startup", script: "hooks/update-check.js", timeout: 15 },
   {
     event: "UserPromptSubmit",
     script: "hooks/memory-surface.js",
@@ -251,12 +256,12 @@ if (settingsChanged && !DRY) {
 // ---------------------------------------------------------------- 4. VS Code Sidekick
 
 /** Run a CLI. On Windows `code` and `claude` may be .cmd shims, which need a shell. */
-function sh(cmd, argv) {
+function sh(cmd, argv, { input, timeout = 120000 } = {}) {
   const win = process.platform === "win32";
   const q = (a) => (/[\s"]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a);
   const r = win
-    ? spawnSync([cmd, ...argv].map(q).join(" "), { shell: true, encoding: "utf8", timeout: 120000 })
-    : spawnSync(cmd, argv, { encoding: "utf8", timeout: 120000 });
+    ? spawnSync([cmd, ...argv].map(q).join(" "), { shell: true, encoding: "utf8", timeout, input })
+    : spawnSync(cmd, argv, { encoding: "utf8", timeout, input });
   return { ok: r.status === 0, out: `${r.stdout || ""}${r.stderr || ""}`.trim(), missing: r.error?.code === "ENOENT" || r.status === 127 || /not recognized|not found/i.test(r.stderr || "") };
 }
 const has = (cmd) => !!cmd && sh(cmd, ["--version"]).ok;
@@ -277,6 +282,10 @@ function findClaude() {
   return bundled && fs.existsSync(bundled) && has(bundled) ? bundled : null;
 }
 
+const CLAUDE_BIN = findClaude();
+if (CLAUDE_BIN) manifest.claudeBin = CLAUDE_BIN;
+manifest.repoDir = fwd(REPO); // update-check.js watches this clone for new commits
+
 const sidekick = { status: "skipped (--no-vscode)", notes: [] };
 const VSIX = path.join(REPO, "vscode-sidekick", "dist", "cortex-sidekick.vsix");
 if (!NO_VSCODE) {
@@ -290,11 +299,9 @@ if (!NO_VSCODE) {
     }
   }
   const CODE = findCode();
-  const CLAUDE_BIN = findClaude();
   const haveCode = !!CODE;
   const haveClaude = !!CLAUDE_BIN;
   if (CODE) manifest.codeBin = CODE;
-  if (CLAUDE_BIN) manifest.claudeBin = CLAUDE_BIN;
   if (!haveCode) sidekick.notes.push("VS Code was not found. Install it (https://code.visualstudio.com), open it once, then re-run the installer.");
   else if (!fs.existsSync(VSIX)) sidekick.notes.push(`Extension package missing at ${fwd(VSIX)}; run \`npm run package\` in vscode-sidekick/.`);
   else if (!DRY) {
@@ -324,6 +331,75 @@ if (!NO_VSCODE) {
         : "not installed — see the installer output";
 }
 
+// ---------------------------------------------------------------- 4b. tools (MCP servers)
+//
+// Registered at user scope, so every project gets them. A server name the user already
+// has is left alone (theirs wins), unless WE added it on an earlier install, in which case
+// it is refreshed (paths may have moved). Only names we added are removed by uninstall.
+
+const toolsReport = []; // [name, status]
+manifest.mcpAdded = prior && Array.isArray(prior.mcpAdded) ? prior.mcpAdded : [];
+const venvPython = (dir) =>
+  process.platform === "win32" ? path.join(dir, ".venv", "Scripts", "python.exe") : path.join(dir, ".venv", "bin", "python");
+const ghReady = () => sh("gh", ["auth", "token"], { timeout: 10000 }).ok;
+const findUv = () =>
+  has("uv") ? "uv" : [path.join(HOME, ".local", "bin", "uv"), "/opt/homebrew/bin/uv", "/usr/local/bin/uv"].find((p) => fs.existsSync(p) && has(p)) || null;
+
+function registerTool(name, def, why) {
+  if (!def) return toolsReport.push([name, why]);
+  const ours = manifest.mcpAdded.includes(name);
+  const exists = sh(CLAUDE_BIN, ["mcp", "get", name]).ok; // read-only, so the dry run does it too
+  if (exists && !ours && !FORCE) return toolsReport.push([name, "you already have one with this name — kept yours"]);
+  if (DRY) return toolsReport.push([name, exists ? "would refresh" : "would register"]);
+  if (exists) sh(CLAUDE_BIN, ["mcp", "remove", name, "-s", "user"]);
+  const r = sh(CLAUDE_BIN, ["mcp", "add-json", "-s", "user", name, "-"], { input: JSON.stringify(def) });
+  if (!r.ok) return toolsReport.push([name, "registration failed: " + r.out.slice(0, 200)]);
+  if (!ours) manifest.mcpAdded.push(name);
+  toolsReport.push([name, "registered"]);
+}
+
+if (NO_TOOLS) toolsReport.push(["all tools", "skipped (--no-tools)"]);
+else if (!CLAUDE_BIN) toolsReport.push(["all tools", "skipped — the `claude` command was not found (run the installer from inside Claude Code)"]);
+else {
+  // Library docs on demand, so Claude codes against the current API instead of its memory.
+  registerTool("context7", { type: "http", url: "https://mcp.context7.com/mcp" });
+
+  // A real browser Claude drives itself (navigate, click, fill, screenshot). Pinned version.
+  const npx = process.platform === "win32" ? "npx" : findOnPath("npx");
+  registerTool(
+    "playwright",
+    npx && { type: "stdio", command: npx, args: ["-y", "@playwright/mcp@0.0.85"] },
+    "skipped — npx was not found (it comes with Node.js)"
+  );
+
+  // GitHub issues, PRs and code search, authenticated through the gh CLI at connect time.
+  registerTool(
+    "github",
+    ghReady() && {
+      type: "http",
+      url: "https://api.githubcopilot.com/mcp/",
+      headersHelper: `${NODE} "${fwd(path.join(CLAUDE, "mcp", "github-headers.js"))}"`,
+    },
+    "skipped — install the GitHub CLI and run `gh auth login`, then re-run the installer"
+  );
+
+  // reels: watch Instagram reels, TikToks, YouTube Shorts (transcript + frames). Needs uv.
+  const REELS = path.join(REPO, "tools", "reels");
+  if (NO_REELS) toolsReport.push(["reels", "skipped (--no-reels)"]);
+  else {
+    const uv = findUv();
+    let def = null;
+    let why = "skipped — needs uv (macOS: `brew install uv`; Windows: `winget install astral-sh.uv`), then re-run the installer";
+    if (uv && !DRY) {
+      console.log("Setting up the reels tool (Python + Whisper). The first time takes a few minutes…");
+      const r = sh(uv, ["sync", "--project", REELS, "--quiet"], { timeout: 1800000 });
+      if (r.ok && fs.existsSync(venvPython(REELS))) def = { type: "stdio", command: fwd(venvPython(REELS)), args: [fwd(path.join(REELS, "reels_mcp.py"))] };
+      else why = "setup failed: " + r.out.slice(-300);
+    } else if (uv) def = {}; // dry run: report "would register"
+    registerTool("reels", def, why);
+  }
+}
+
 // ---------------------------------------------------------------- 5. welcome page
 
 function repoUrl() {
@@ -344,7 +420,10 @@ if (fs.existsSync(welcomeSrc) && !DRY) {
     .split("{{CLAUDE_DIR}}").join(esc(fwd(CLAUDE)))
     .split("{{REPO_DIR}}").join(esc(fwd(REPO)))
     .split("{{REPO_URL}}").join(esc(repoUrl()))
-    .split("{{SIDEKICK_STATUS}}").join(esc(sidekick.status));
+    .split("{{SIDEKICK_STATUS}}").join(esc(sidekick.status))
+    .split("{{TOOLS_STATUS}}").join(
+      esc(toolsReport.filter(([, s]) => /registered|refresh|kept yours/.test(s)).map(([n]) => n).join(", ") || "none — see the installer output")
+    );
   fs.mkdirSync(path.dirname(welcomeDest), { recursive: true });
   fs.writeFileSync(welcomeDest, html);
 }
@@ -365,6 +444,8 @@ line("Overwritten (backup saved as .bak-*)", report.overwritten);
 line("CONFLICT — yours kept, template saved beside it as .cortex-new; merge by hand", report.conflict);
 console.log(`\nsettings.json: ${settingsChanged ? "hooks merged (backup saved)" : "already had the Cortex hooks"}`);
 console.log(`VS Code Sidekick: ${sidekick.status}`);
+console.log("Tools:");
+for (const [n, s] of toolsReport) console.log(`  ${n}: ${s}`);
 for (const n of sidekick.notes) console.log(`  ! ${n}`);
 console.log(`
 Next:

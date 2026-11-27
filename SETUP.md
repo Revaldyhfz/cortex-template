@@ -29,6 +29,10 @@ until they confirm:
 | macOS | `brew install node` (or the installer from nodejs.org) | `xcode-select --install` |
 | Linux | the NodeSource or distro package for Node 20+ | `sudo apt install git` (or the distro equivalent) |
 
+Recommended, not required. Offer them once and install if the user says yes:
+- **uv** runs the reels tool (Claude watching Instagram reels, TikToks and Shorts). Install it with `brew install uv` on macOS or `winget install astral-sh.uv` on Windows.
+- **GitHub CLI** enables the GitHub tool. Install it with `brew install gh` or `winget install GitHub.cli`, then the user runs `gh auth login` themselves, because it signs in to their account.
+
 On macOS, if `node` was just installed with Homebrew, it lives in `/opt/homebrew/bin` (Apple
 silicon) or `/usr/local/bin` (Intel). If your shell cannot see it yet, call it by that full
 path. The installer writes the absolute node path into every hook, so hooks work even
@@ -50,7 +54,8 @@ what the installer will change on their machine:
 
 - files copied into `~/.claude/` (rules, skills, hooks, a capture engine, autonomous mode);
 - a notes folder ("the vault") created at the path they choose;
-- nine hook entries merged into `~/.claude/settings.json` after a backup;
+- ten hook entries merged into `~/.claude/settings.json` after a backup;
+- four tool servers registered (reels, Playwright, context7, GitHub); any the user already has are kept;
 - the VS Code Sidekick extension installed, and an MCP server named `vscode` registered;
 - nothing is overwritten: conflicts are saved beside the original as `.cortex-new`, and
   `node uninstall.mjs` undoes it all.
@@ -82,7 +87,16 @@ node test/smoke.mjs
 It must end `0 failed`. If anything fails, diagnose and fix it yourself before reporting —
 do not hand the user a checklist.
 
-## 6. Hand over
+## 6. Check what the Claude app itself provides
+
+Look at your own tool list and tell the user which of these are already on:
+- tools named `mcp__claude-in-chrome__*` (Claude in Chrome);
+- tools named `mcp__computer-use__*` (desktop control);
+- the built-in browser.
+
+For each one that is missing, give them the one-line way to turn it on from the README section "Tools Claude gets". Do not install browser extensions or change system privacy settings yourself. Those are their clicks.
+
+## 7. Hand over
 
 Tell the user, briefly:
 

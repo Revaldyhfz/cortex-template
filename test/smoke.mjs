@@ -23,9 +23,20 @@ const CLAUDE = path.join(HOME, ".claude");
 const BIN = path.join(TMP, "bin");
 const CLI_LOG = path.join(TMP, "cli.log");
 fs.mkdirSync(BIN);
+// The fake logs "<name> <args…>", plus whatever arrives on stdin when the last arg is "-"
+// (that is how the installer hands JSON to `claude mcp add-json`). `mcp get` always says
+// "not registered"; `gh auth token` says "logged in".
 fs.writeFileSync(
   path.join(BIN, "shim.cjs"),
-  'const a = process.argv.slice(2); require("fs").appendFileSync(process.env.CLI_LOG, a.join(" ") + "\\n"); process.exit(a[1] === "mcp" && a[2] === "get" ? 1 : 0);'
+  [
+    'const fs = require("fs");',
+    "const a = process.argv.slice(2);",
+    'let line = a.join(" ");',
+    'if (a[a.length - 1] === "-") line += " " + fs.readFileSync(0, "utf8");',
+    'fs.appendFileSync(process.env.CLI_LOG, line + "\\n");',
+    'if (a[0] === "gh") { process.stdout.write("fake-token"); process.exit(0); }',
+    'process.exit(a[1] === "mcp" && a[2] === "get" ? 1 : 0);',
+  ].join("\n")
 );
 /** Write a fake CLI called `name` into `dir`; returns its path. */
 function shim(dir, name) {
@@ -42,6 +53,7 @@ function shim(dir, name) {
 }
 shim(BIN, "code");
 shim(BIN, "claude");
+shim(BIN, "gh");
 // Never let the installer reach the REAL Claude binary that the desktop app advertises.
 const env = { ...process.env, HOME, USERPROFILE: HOME, GUARDRAIL_LOG: path.join(TMP, "guard.log"), CLI_LOG, CLAUDE_CODE_EXECPATH: path.join(TMP, "no-such-claude") };
 const pathKey = Object.keys(env).find((k) => k.toUpperCase() === "PATH") || "PATH";
@@ -69,7 +81,7 @@ fs.writeFileSync(
 );
 
 // ---- install
-let r = run(path.join(REPO, "install.mjs"), "", ["--vault", VAULT, "--no-open"]);
+let r = run(path.join(REPO, "install.mjs"), "", ["--vault", VAULT, "--no-open", "--no-reels"]);
 ok(r.status === 0, "install exits 0", r.stderr);
 ok(fs.readFileSync(path.join(CLAUDE, "CLAUDE.md"), "utf8") === "# my own notes\n", "existing CLAUDE.md kept");
 ok(fs.existsSync(path.join(CLAUDE, "CLAUDE.md.cortex-new")), "template saved beside it as .cortex-new");
@@ -77,7 +89,7 @@ ok(fs.readdirSync(CLAUDE).some((f) => f.startsWith("settings.json.bak-cortex-"))
 const settings = JSON.parse(fs.readFileSync(path.join(CLAUDE, "settings.json"), "utf8"));
 const count = () =>
   Object.values(JSON.parse(fs.readFileSync(path.join(CLAUDE, "settings.json"), "utf8")).hooks || {}).flat().length;
-ok(count() === 10, "nine Cortex hook groups merged beside the user's own", `got ${count()}`);
+ok(count() === 11, "ten Cortex hook groups merged beside the user's own", `got ${count()}`);
 ok(settings.autoMemoryDirectory === "~/.claude/memory", "autoMemoryDirectory set");
 const ourCmds = Object.values(settings.hooks).flat().flatMap((g) => g.hooks).map((h) => h.command).filter((c) => c !== "echo mine");
 ok(
@@ -103,11 +115,50 @@ ok(conn.port === 7341 && /^[0-9a-f]{64}$/.test(conn.token), "sidekick.json writt
 ok(log1.includes(`claude mcp add --scope user --transport http vscode http://127.0.0.1:7341/mcp --header Authorization: Bearer ${conn.token}`), "installer registers the MCP server with that token", log1);
 const welcome = fs.readFileSync(path.join(CLAUDE, "cortex", "welcome.html"), "utf8");
 ok(!/{{[A-Z_]+}}/.test(welcome) && welcome.includes(fwd(VAULT)) && welcome.includes("installed"), "welcome page rendered with every token filled", (welcome.match(/{{[A-Z_]+}}/g) || []).join(" "));
+// ---- tool servers, registered through add-json on stdin
+const log2 = cliLog();
+ok(log2.includes('claude mcp add-json -s user context7 - {"type":"http","url":"https://mcp.context7.com/mcp"}'), "context7 registered", log2);
+ok(/claude mcp add-json -s user playwright - .*@playwright\/mcp@\d+\.\d+\.\d+"/.test(log2), "Playwright registered with a pinned version", log2);
+const addLines = log2.split("\n").filter((l) => l.includes("add-json"));
+ok(addLines.some((l) => /add-json -s user github - .*"headersHelper":".*github-headers\.js/.test(l)) && !addLines.join("").includes("fake-token"), "GitHub registered with a token helper, no token stored", log2);
+ok(fs.existsSync(path.join(CLAUDE, "mcp", "github-headers.js")), "GitHub token helper installed");
+const man1 = JSON.parse(fs.readFileSync(path.join(CLAUDE, "cortex", "install-manifest.json"), "utf8"));
+ok(["context7", "playwright", "github"].every((n) => man1.mcpAdded.includes(n)) && !man1.mcpAdded.includes("reels"), "manifest lists exactly the tools we added", JSON.stringify(man1.mcpAdded));
+ok(fwd(man1.repoDir) === fwd(REPO), "manifest records the repo folder for update checks");
+r = run(path.join(CLAUDE, "mcp", "github-headers.js"), "");
+ok(r.status === 0 && /^\{.*\}$/.test(r.stdout), "GitHub token helper prints a JSON header object", r.stdout);
+
+// ---- update check, against a local stand-in for GitHub
+{
+  const g = (cwd, ...a) => spawnSync("git", a, { cwd, encoding: "utf8", env: { ...env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" } });
+  const up = path.join(TMP, "upstream.git"), work = path.join(TMP, "work"), clone = path.join(TMP, "clone");
+  g(TMP, "init", "-q", "--bare", "-b", "main", up);
+  g(TMP, "clone", "-q", up, work);
+  fs.writeFileSync(path.join(work, "a.txt"), "1");
+  g(work, "add", "."); g(work, "commit", "-qm", "first"); g(work, "push", "-q", "origin", "HEAD:main");
+  g(TMP, "clone", "-q", up, clone);
+  const manPath = path.join(CLAUDE, "cortex", "install-manifest.json");
+  fs.writeFileSync(manPath, JSON.stringify({ ...man1, repoDir: fwd(clone) }));
+  r = hook("hooks/update-check.js", { hook_event_name: "SessionStart", source: "startup" });
+  ok(r.status === 0 && r.stdout === "", "update-check silent when up to date", r.stdout + r.stderr);
+  fs.writeFileSync(path.join(work, "a.txt"), "2");
+  g(work, "commit", "-qam", "Add a shiny new rule"); g(work, "push", "-q", "origin", "HEAD:main");
+  fs.rmSync(path.join(CLAUDE, "cortex", "state", "update-check.json"), { force: true });
+  r = hook("hooks/update-check.js", { hook_event_name: "SessionStart", source: "startup" });
+  let ctx = "";
+  try { ctx = JSON.parse(r.stdout).hookSpecificOutput.additionalContext; } catch {}
+  ok(/1 commit\(s\) behind/.test(ctx) && ctx.includes("Add a shiny new rule") && /update-cortex/.test(ctx), "update-check reports a new commit and offers update-cortex", r.stdout.slice(0, 300));
+  r = hook("hooks/update-check.js", { hook_event_name: "SessionStart", source: "startup" });
+  ok(/1 commit/.test(r.stdout), "update-check keeps reminding (from cache) until updated");
+  ok(fs.readFileSync(path.join(clone, "a.txt"), "utf8") === "1", "update-check never pulls on its own");
+  fs.writeFileSync(manPath, JSON.stringify(man1));
+}
+
 r = hook("hooks/sidekick-notify.js", { hook_event_name: "PreToolUse", tool_name: "Edit", tool_input: { file_path: path.join(TMP, "x.ts") } });
 ok(r.status === 0 && r.stdout === "", "sidekick-notify is silent and harmless with VS Code closed");
 
-r = run(path.join(REPO, "install.mjs"), "", ["--vault", VAULT, "--no-open"]);
-ok(r.status === 0 && count() === 10 && JSON.parse(fs.readFileSync(path.join(CLAUDE, "cortex", "sidekick.json"), "utf8")).token === conn.token, "re-install is idempotent (no duplicate hooks, same token)", `got ${count()}`);
+r = run(path.join(REPO, "install.mjs"), "", ["--vault", VAULT, "--no-open", "--no-reels"]);
+ok(r.status === 0 && count() === 11 && JSON.parse(fs.readFileSync(path.join(CLAUDE, "cortex", "sidekick.json"), "utf8")).token === conn.token, "re-install is idempotent (no duplicate hooks, same token)", `got ${count()}`);
 
 // ---- guardrail
 const guard = (tool, input) => {
@@ -188,6 +239,7 @@ ok(r.stdout.includes("/tmp/x.txt"), "post-compact lists recently written files")
 r = run(path.join(REPO, "uninstall.mjs"), "");
 ok(r.status === 0, "uninstall exits 0", r.stderr);
 ok(/claude mcp remove vscode -s user/.test(cliLog()) && /code --uninstall-extension cortex-template.cortex-sidekick/.test(cliLog()), "uninstall removes the MCP server and the extension", cliLog());
+ok(["context7", "playwright", "github"].every((n) => cliLog().includes(`claude mcp remove ${n} -s user`)), "uninstall removes the tool servers it added", cliLog());
 const after = JSON.parse(fs.readFileSync(path.join(CLAUDE, "settings.json"), "utf8"));
 ok(JSON.stringify(after.hooks) === JSON.stringify({ Stop: [{ hooks: [{ type: "command", command: "echo mine" }] }] }) && after.model === "sonnet" && !after.autoMemoryDirectory, "uninstall removed only Cortex hooks; user settings intact", JSON.stringify(after));
 ok(fs.readFileSync(path.join(CLAUDE, "CLAUDE.md"), "utf8") === "# my own notes\n", "uninstall left the user's own CLAUDE.md");
@@ -207,8 +259,8 @@ const sysPath =
 const env2 = { ...env, HOME: HOME2, USERPROFILE: HOME2, CLAUDE_CODE_EXECPATH: bundled };
 env2[pathKey] = [BIN2, path.dirname(process.execPath), ...sysPath].join(path.delimiter);
 fs.writeFileSync(CLI_LOG, "");
-r = spawnSync(process.execPath, [path.join(REPO, "install.mjs"), "--vault", path.join(TMP, "vault2"), "--no-open"], { env: env2, encoding: "utf8" });
-ok(r.status === 0 && /claude mcp add --scope user/.test(cliLog()), "desktop-app user: MCP registered through the app's bundled claude binary", r.stdout.slice(-400) + cliLog());
+r = spawnSync(process.execPath, [path.join(REPO, "install.mjs"), "--vault", path.join(TMP, "vault2"), "--no-open", "--no-reels"], { env: env2, encoding: "utf8" });
+ok(r.status === 0 && /claude mcp add --scope user/.test(cliLog()) && /add-json -s user context7/.test(cliLog()) && !/add-json -s user github/.test(cliLog()), "desktop-app user: Sidekick + tools registered through the app's bundled claude binary (GitHub skipped without gh)", r.stdout.slice(-400) + cliLog());
 const m2 = JSON.parse(fs.readFileSync(path.join(HOME2, ".claude", "cortex", "install-manifest.json"), "utf8"));
 ok(m2.claudeBin === bundled && m2.mcpServer === true, "manifest remembers which claude binary to use for uninstall", JSON.stringify({ claudeBin: m2.claudeBin, mcp: m2.mcpServer }));
 fs.writeFileSync(CLI_LOG, "");

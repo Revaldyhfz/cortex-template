@@ -403,7 +403,9 @@ const CWD = fs.mkdtempSync(path.join(os.tmpdir(), "aw-cwd-"));
 fs.writeFileSync(path.join(CWD, "QUEUE.md"), OPEN_ITEM, "utf8");
 a = cli(["arm", "1"], "cwd-default", {}, CWD);
 check("with no path, arm defaults to QUEUE.md in the cwd",
-  a.status === 0 && readStateFor("cwd-default").queue === path.join(CWD, "QUEUE.md"),
+  // realpath: on macOS the temp dir /var/... is really /private/var/..., and process.cwd()
+  // reports the real one. Same folder, two spellings.
+  a.status === 0 && fs.realpathSync(readStateFor("cwd-default").queue) === fs.realpathSync(path.join(CWD, "QUEUE.md")),
   a.stderr || readStateFor("cwd-default").queue);
 a = cli(["arm", "1"], "cwd-env", { AUTONOMOUS_QUEUE: armQ }, CWD);
 check("$AUTONOMOUS_QUEUE beats the cwd default",

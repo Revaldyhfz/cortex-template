@@ -31,6 +31,24 @@ jobs:
       - name: Installer dry run against the runner's real home
         run: node install.mjs --dry-run --no-open
 
+  reels:
+    name: reels tool / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Build the environment from the lockfile
+        run: uv sync --project tools/reels --locked
+      - name: Offline self-test (MCP handshake, ffmpeg, contact sheet, Whisper on this machine)
+        run: uv run --project tools/reels python tools/reels/selftest.py
+        env:
+          PYTHONIOENCODING: utf-8
+
   sidekick:
     name: VS Code Sidekick e2e / ${{ matrix.os }}
     strategy:
@@ -46,7 +64,11 @@ jobs:
           node-version: 22
       - name: Install VS Code (macOS)
         if: runner.os == 'macOS'
-        run: brew install --cask visual-studio-code
+        # Clear the download quarantine: otherwise the first launch waits on a Gatekeeper
+        # "are you sure?" dialog that nobody is there to click.
+        run: |
+          brew install --cask visual-studio-code
+          xattr -dr com.apple.quarantine "/Applications/Visual Studio Code.app" || true
       - name: Install VS Code and a virtual display (Linux)
         if: runner.os == 'Linux'
         run: sudo snap install code --classic && sudo apt-get update && sudo apt-get install -y xvfb
