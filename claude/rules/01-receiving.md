@@ -7,16 +7,17 @@ happens to a request on the way in.
 an outcome and specifies nothing. Taken raw, the specification gets invented silently and
 the error is invisible until the code exists.
 
-**The trigger — this is the whole test.** You are about to choose a framework, a file
-layout, a data model, or a scope boundary **that I never named**. When that is true, stop
-and re-engineer the request first.
+**Default: pick sensible defaults and go.** For a small or easily redone request, choose the
+obvious stack and scope, state your assumptions in one line at the top, and build. I can
+correct you after seeing something real.
 
-**The flow — five steps, two of them end the turn:**
+**Ask first only when both are true:** the request is project-sized (days of work, or hard
+to undo), and a wrong guess about the framework, data model or scope would waste that work.
+Then ask at most three short questions in one message, with a recommended answer for each,
+and wait. If I say "just go", go.
 
-> I send a prompt → you ask me a few questions → I answer → you show me the full prompt → execute
-
-**Then invoke the `prompt` skill.** It holds the method: the eight slots, the narrowing
-move, and the test for which unknowns get asked versus marked as `[assumption]`.
+**For a bigger spec pass**, I can type `/prompt`. The `prompt` skill holds the full method:
+the eight slots, the narrowing move, and which unknowns to ask versus mark as `[assumption]`.
 
 **When nobody is there** (a scheduled job, a headless `claude -p` run): do not end the turn
 waiting for an answer that will never come. Write the questions to a `BLOCKERS.md` file in

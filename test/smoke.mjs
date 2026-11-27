@@ -7,6 +7,7 @@
  *   node test/smoke.mjs
  */
 import fs from "node:fs";
+import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -159,6 +160,26 @@ ok(r.status === 0 && r.stdout === "", "sidekick-notify is silent and harmless wi
 
 r = run(path.join(REPO, "install.mjs"), "", ["--vault", VAULT, "--no-open", "--no-reels"]);
 ok(r.status === 0 && count() === 11 && JSON.parse(fs.readFileSync(path.join(CLAUDE, "cortex", "sidekick.json"), "utf8")).token === conn.token, "re-install is idempotent (no duplicate hooks, same token)", `got ${count()}`);
+
+// ---- updates: a file the user never edited is replaced; one they edited becomes a conflict
+{
+  const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
+  const manPath = path.join(CLAUDE, "cortex", "install-manifest.json");
+  const old = "# an older template version of this rule\n";
+  const pristine = path.join(CLAUDE, "rules", "tooling.md");
+  const edited = path.join(CLAUDE, "rules", "environment.md");
+  const editedTemplate = fs.readFileSync(edited, "utf8");
+  fs.writeFileSync(pristine, old);
+  fs.appendFileSync(edited, "\nmy own line\n");
+  const man = JSON.parse(fs.readFileSync(manPath, "utf8"));
+  man.hashes[fwd(pristine)] = sha(Buffer.from(old));
+  fs.writeFileSync(manPath, JSON.stringify(man));
+  r = run(path.join(REPO, "install.mjs"), "", ["--vault", VAULT, "--no-open", "--no-reels"]);
+  ok(fs.readFileSync(pristine, "utf8") === fs.readFileSync(path.join(REPO, "claude", "rules", "tooling.md"), "utf8") && /Updated \(you had not edited these\) \(1\)/.test(r.stdout), "update replaces a file the user never edited", r.stdout.slice(-600));
+  ok(fs.readFileSync(edited, "utf8").endsWith("my own line\n") && fs.existsSync(edited + ".cortex-new"), "update keeps a file the user edited and saves the new one beside it");
+  fs.writeFileSync(edited, editedTemplate);
+  fs.rmSync(edited + ".cortex-new");
+}
 
 // ---- guardrail
 const guard = (tool, input) => {

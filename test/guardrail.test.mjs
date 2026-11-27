@@ -271,6 +271,9 @@ const CASES = {
       "mcp__github__create_or_update_file",
       "mcp__github__delete_file",
       "mcp__abc7b9e5__deploy_to_vercel",
+      "mcp__github__add_issue_comment",
+      "mcp__github__issue_write",
+      "mcp__github__pull_request_review_write",
     ].map((t) => [t, {}, A]),
   ],
   "irreversible / money (deny)": [
@@ -280,6 +283,9 @@ const CASES = {
       "mcp__crypto__withdraw_funds",
       "mcp__crypto__transfer_balance",
     ].map((t) => [t, {}, D]),
+  ],
+  "money-related reads (allow)": [
+    ...["mcp__crypto__list_transfers", "mcp__crypto__get_trades", "mcp__bank__search_transfers", "mcp__github__list_issues"].map((t) => [t, {}, OK]),
   ],
 
   // ----------------------------------------------------------- control plane

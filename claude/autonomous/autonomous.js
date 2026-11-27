@@ -67,7 +67,7 @@ const WRAP_MS = 20 * 60 * 1000;
 /** Absolute ceiling past the deadline, whatever else happens. */
 const GRACE_MS = 15 * 60 * 1000;
 /** Counts blocks, not minutes — a stopped clock cannot defeat this one. */
-const DEFAULT_TURN_CAP = 400;
+const DEFAULT_TURN_CAP = 150; // a safety stop on usage; a long run can raise it in state.json
 
 function log(msg) {
   try {

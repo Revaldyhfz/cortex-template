@@ -5,8 +5,8 @@ Only entries that change what Claude *does*. Edit this to match the tools you ha
 ## Documentation before memory
 
 When coding against any third-party library, check current docs **before** relying on
-recall. The `context7` MCP server is good for this:
-`claude mcp add --scope user context7 -- npx -y @upstash/context7-mcp`
+recall. The installer registered the `context7` MCP server for this; ask Claude to "check
+the docs with context7".
 
 ## Web access — "site is blocked" is usually about the tool, not the site
 

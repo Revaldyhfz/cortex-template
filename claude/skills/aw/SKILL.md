@@ -1,6 +1,7 @@
 ---
 name: aw
-description: Arm autonomous mode for a stated number of hours away. Use when the user types /aw or /aw <hours>, or says they are heading out and want work to continue without them — "I'll be out for 5 hours", "keep working while I'm gone", "autonomous mode".
+description: Arm autonomous mode for a stated number of hours away. Runs only when the user types /aw <hours> themselves; never start it from a remark like "I'll be out for a bit".
+disable-model-invocation: true
 ---
 
 # aw — autonomous work
@@ -125,7 +126,7 @@ the correct output.
 | delete `~/.claude/autonomous/runs/<session-id>.json` | also disarms that run |
 
 The hook can never trap a session: a corrupt state file, an unparseable deadline, a
-crash, the turn cap (400), the deadline-plus-15-minute ceiling, a stall, or a verifiably
+crash, the turn cap (150), the deadline-plus-15-minute ceiling, a stall, or a verifiably
 empty queue all let the session stop. An **unreadable** queue is deliberately *not*
 treated as dry. A dry queue does not release immediately — the first dry Stop asks for
 the wrap-up, the second lets you go.

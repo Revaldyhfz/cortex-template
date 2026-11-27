@@ -21,12 +21,17 @@ Run each and note the result. Do not install anything yet.
   Sidekick.
 
 If Node or git is missing, tell the user exactly how to install it for their OS and stop
-until they confirm:
+until they confirm.
+
+**macOS: check `brew --version` first.** A new Mac usually has no Homebrew. If it is missing,
+give the user the official install command from https://brew.sh to paste into Terminal
+themselves (it asks for their Mac password, so it is their step, not yours). Then continue.
+
 
 | OS | Node.js | git |
 |---|---|---|
 | Windows | `winget install OpenJS.NodeJS.LTS` | `winget install Git.Git` |
-| macOS | `brew install node` (or the installer from nodejs.org) | `xcode-select --install` |
+| macOS | `brew install node` (needs Homebrew, see above; or the installer from nodejs.org) | `xcode-select --install` |
 | Linux | the NodeSource or distro package for Node 20+ | `sudo apt install git` (or the distro equivalent) |
 
 Recommended, not required. Offer them once and install if the user says yes:
@@ -59,6 +64,21 @@ what the installer will change on their machine:
 - the VS Code Sidekick extension installed, and an MCP server named `vscode` registered;
 - nothing is overwritten: conflicts are saved beside the original as `.cortex-new`, and
   `node uninstall.mjs` undoes it all.
+
+Then, separately and in plain words, tell them what changes about **how Claude behaves**.
+These are the things a new user would not guess:
+
+- **Rules** in `~/.claude/rules/` shape every session: answers lead with the result,
+  Claude checks its own work by running it, and it asks before anything outward-facing
+  (pushing code, sending mail). Heavier modes stay off until they ask: "COOK" for maximum
+  depth, "studio" for a team of agents, `/aw` for unattended work. Those use much more of
+  their plan's usage.
+- **Conversations are saved** as plain notes in the vault folder, on their own machine.
+- **A safety hook** checks commands before they run and asks before risky ones.
+- **Once every 6 hours**, at session start, Claude checks this repository for updates
+  (a read-only `git fetch`) and tells them if there is one. It never installs on its own.
+- **Claude can run commands in a visible VS Code terminal** and read recent terminal
+  output there, through the Sidekick.
 
 ## 4. Ask one question: where the notes go
 

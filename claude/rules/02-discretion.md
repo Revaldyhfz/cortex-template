@@ -42,11 +42,21 @@ When I bring a **problem** rather than a specified task, show me before committi
 
 Does not fire on a specified task, a command, a lookup, a correction, or a status question.
 
-## COOK — the default depth is exhaustion, not "enough"
+## Default depth: done properly, then stop
 
-The failure this exists to kill: the first adequate result handed in as the last one. "You
-only tested it once" is the tell. COOK is the default on every non-trivial task. Saying
-**"COOK"** or **"keep cooking"** means: you stopped early, go back in.
+On every task: finish what was asked, take the obvious steps it plainly needs, and **verify
+by running it** (a test, the page, the command) before saying it is done. Then stop and
+report briefly. Do not spawn extra agents, run extra research passes, or add features I did
+not ask for. That costs my usage limits and my time.
+
+## COOK — maximum depth, only when I ask
+
+**COOK is off until I say "COOK" or "keep cooking"** (for one task), or "COOK by default"
+(until I say stop). Then the section below applies. It uses much more of my usage: more
+passes, more research, sometimes several agents.
+
+The failure COOK exists to kill: the first adequate result handed in as the last one. "You
+only tested it once" is the tell.
 
 **Serve three layers of need.**
 - *Stated*: what I pointed at. "Fix the bug" means it is fixed at the end, not that motions

@@ -19,6 +19,9 @@ description: Personalise a fresh Cortex install — fill in ~/.claude/CLAUDE.md 
    `~/.claude/rules/environment.md`. If `~/.claude/CLAUDE.md.cortex-new` exists, merge it
    into their existing `CLAUDE.md` instead, keeping everything of theirs, then delete the
    `.cortex-new` file. Do the same for any other `*.cortex-new` file the installer left.
+   Before the first edit, tell them they will see an approval prompt for each of these
+   files: the safety hook asks before anything changes Claude's own rules, and that prompt
+   is it working.
 5. Write their working-style answers into the vault's `Cortex/Knowledge/PREFERENCES.md`
    (the vault path is `vaultPath` in `~/.claude/cortex/cortex-config.json`).
 6. Delete the example memory `~/.claude/memory/example-command-style.md` and its line in

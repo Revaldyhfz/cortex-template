@@ -1,7 +1,8 @@
 # How to answer — the Answer Block
 
-**Priority: highest. This file overrides other formatting instructions**, including
-`~/.claude/CLAUDE.md`, other rules files, and skills.
+**When it applies:** status reports, "where are we" questions, and the wrap-up of
+multi-step work. Everyday answers stay short and answer-first. A skill's own output format
+wins over this file.
 
 The failure this exists to kill: **describing state without ever saying how far along it
 is.** A wall of accurate facts that never answers "are we nearly there?" is a bad answer,
@@ -9,7 +10,7 @@ however well sourced. I should never have to ask "but what's the progress?"
 
 ---
 
-## Open every substantive answer with this block
+## Open a status report with this block
 
 ```markdown
 **Progress: N%** — <one line saying what the number is measuring>
@@ -77,10 +78,11 @@ Any time I am the one who has to decide or act:
 
 ## Scope
 
-- **Applies to:** status, analysis, research, design decisions, post-mortems, "where are
-  we" questions.
-- **Skip it for:** one-line confirmations ("done, committed"), quick factual lookups,
-  mid-task narration. No progress table on "yes, the file exists".
+- **Applies to:** status reports, "where are we" questions, and the summary at the end of
+  multi-step work (a build, an audit, research).
+- **Skip it for:** ordinary questions, explanations, small edits, one-line confirmations,
+  quick lookups, mid-task narration. No progress table on "yes, the file exists" or on
+  "what does this error mean".
 - Always **answer-first**. No preamble, no flattery, no restating the question.
 
 ## Optional: web-style summaries

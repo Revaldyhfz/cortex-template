@@ -316,9 +316,10 @@ const OUTWARD_FACING =
   /^mcp__(?!ccd_)[^]*__(send_message|send_email|reply|forward|trash_message|trash_thread|mark_message_spam|mark_thread_spam|create_event|update_event|delete_event|respond_to_event|buy_\w+)$/i;
 
 const REPO_WRITE =
-  /^mcp__(?!ccd_)[^]*__(create_pull_request|merge_pull_request|update_pull_request|push_files|create_or_update_file|delete_file|create_branch|fork_repository|create_repository|deploy_to_vercel|create_git_project|update_project_deployment_protection)$/i;
+  /^mcp__(?!ccd_)[^]*__(create_pull_request|merge_pull_request|update_pull_request|push_files|create_or_update_file|delete_file|create_branch|fork_repository|create_repository|deploy_to_vercel|create_git_project|update_project_deployment_protection|issue_write|create_issue|update_issue|add_issue_comment|update_issue_comment|sub_issue_write|add_reply_to_pull_request_comment|add_comment_to_pending_review|pull_request_review_write)$/i;
 
-const IRREVERSIBLE = /^mcp__(?!ccd_)[^]*__(delete_repository|.*(?:trade|withdraw|transfer|swap_|sell_|deposit)\w*)$/i;
+// Read-only verbs (list_transfers, get_trades) are not money moves, so they pass.
+const IRREVERSIBLE = /^mcp__(?!ccd_)[^]*__(?!(?:list|get|search|read|fetch|query|count|describe|view|show|preview|estimate)_)(delete_repository|.*(?:trade|withdraw|transfer|swap_|sell_|deposit)\w*)$/i;
 
 // Both path spellings (Windows and POSIX) so Git Bash cannot sidestep them.
 const CONTROL_PLANE = [
@@ -440,7 +441,8 @@ function audit(rule, payload) {
       ts: new Date().toISOString(),
       rule: rule.id,
       tool: payload.tool_name,
-      input: payload.tool_input,
+      // A short preview only: full commands and message bodies stay out of the log.
+      input: JSON.stringify(payload.tool_input ?? null).slice(0, 200),
       session: payload.session_id,
     }) + "\n";
   try {

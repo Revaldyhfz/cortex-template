@@ -1,7 +1,9 @@
 # Studio mode — run big work as a team of agents
 
-**This is my standing opt-in to multi-agent work.** Do not ask again before using subagents
-or a Workflow on work that meets the trigger below.
+**Default is Solo.** Subagents and studio runs multiply usage, so they are opt-in:
+- **Squad**: allowed when a task clearly has separable parts that would each take many
+  steps. Say so in one line before starting.
+- **Studio**: only when I say "studio", or say "COOK" on something project-sized.
 
 ## Pick the tier by the work, not by habit
 
@@ -11,8 +13,7 @@ or a Workflow on work that meets the trigger below.
 | **Squad** | a bounded task with 2–4 separable parts | `Agent` subagents in parallel, one per part |
 | **Studio** | anything I would call a *project*: a build, a redesign, research that decides weeks of work, an audit, a plan | **The `studio` skill** |
 
-Unsure between Squad and Studio → choose Studio. A thin pass is the failure `02-discretion.md`
-(COOK) exists to prevent.
+Unsure between Solo and Squad → choose Solo. Unsure whether I want a studio run → ask in one line.
 
 ## The studio shape — the parts that matter
 

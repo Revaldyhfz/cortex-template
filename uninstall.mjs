@@ -91,6 +91,9 @@ const move = (abs) => {
 // per-file moves below never pre-create its destination.
 move(path.join(CLAUDE, "cortex"));
 for (const f of manifest.files || []) move(path.resolve(f));
+// Conflict copies from install or update (.cortex-new) beside any file we placed or kept.
+for (const f of manifest.files || []) move(path.resolve(f) + ".cortex-new");
+for (const f of ["CLAUDE.md", "memory/MEMORY.md"]) move(path.join(CLAUDE, f + ".cortex-new"));
 for (const d of ["skills/boot", "skills/save-state", "skills/prompt", "skills/research", "skills/council", "skills/studio", "skills/aw", "skills/personalise", "skills/update-cortex", "mcp", "autonomous"]) {
   const dir = path.join(CLAUDE, d);
   try {
@@ -103,4 +106,20 @@ console.log(`  Hook entries removed from settings.json: ${removedHooks}`);
 for (const e of external) console.log("  " + e);
 console.log(`  Files moved (${moved.length}) to ${fwd(TRASH)}`);
 for (const m of moved) console.log("   - " + m);
+// 4. Things deliberately left in place. Listed so nothing is a surprise; delete them if you
+//    want the space back.
+const left = [];
+const leftIf = (p, what) => fs.existsSync(p) && left.push(`${what}: ${fwd(p)}`);
+if (manifest.repoDir) leftIf(path.join(manifest.repoDir, "tools", "reels", ".venv"), "reels Python environment (large)");
+leftIf(path.join(HOME, ".cache", "cortex-reels"), "reels video cache");
+leftIf(path.join(HOME, ".cache", "huggingface"), "Whisper speech models (shared with other apps)");
+for (const p of [path.join(HOME, "Library", "Caches", "ms-playwright"), path.join(HOME, ".cache", "ms-playwright"), path.join(process.env.LOCALAPPDATA || path.join(HOME, "AppData", "Local"), "ms-playwright")]) leftIf(p, "Playwright browsers (shared with other apps)");
+if (manifest.settingsBackup) leftIf(path.resolve(manifest.settingsBackup), "settings.json as it was before Cortex (restore it by copying it over settings.json)");
+const mem = path.join(CLAUDE, "memory");
+if (fs.existsSync(mem) && fs.readdirSync(mem).length) left.push(`your memories (Claude no longer loads them from here once autoMemoryDirectory is gone): ${fwd(mem)}`);
+if (left.length) {
+  console.log("\nLeft in place on purpose:");
+  for (const l of left) console.log("   - " + l);
+}
+
 console.log(`\nYour vault was not touched: ${manifest.vault}\nRestart Claude Code to finish.`);

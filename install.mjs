@@ -69,8 +69,12 @@ const manifest = {
   setAutoMemoryDirectory: prior ? prior.setAutoMemoryDirectory : false,
   vscodeExtension: prior ? !!prior.vscodeExtension : false,
   mcpServer: prior ? !!prior.mcpServer : false,
+  // sha256 of each file exactly as this installer last wrote it. A file that still matches
+  // was never edited by the user, so an update may replace it without asking.
+  hashes: prior && prior.hashes ? prior.hashes : {},
 };
-const report = { created: [], same: [], conflict: [], overwritten: [] };
+const report = { created: [], same: [], updated: [], conflict: [], overwritten: [] };
+const sha = (buf) => crypto.createHash("sha256").update(buf).digest("hex");
 
 function readJson(file, fallback) {
   try {
@@ -102,8 +106,21 @@ function place(src, dest, mode = "template") {
   const data = render(src);
   const rel = fwd(dest);
   if (fs.existsSync(dest)) {
-    if (Buffer.compare(fs.readFileSync(dest), data) === 0) return report.same.push(rel);
+    const cur = fs.readFileSync(dest);
+    if (Buffer.compare(cur, data) === 0) {
+      if (mode === "template") manifest.hashes[rel] = sha(data);
+      return report.same.push(rel);
+    }
     if (mode === "keep") return report.same.push(rel + " (kept yours)");
+    if (manifest.hashes[rel] && manifest.hashes[rel] === sha(cur)) {
+      // Unchanged since we installed it: this is an update, not a conflict.
+      if (!DRY) {
+        fs.writeFileSync(dest, data);
+        fs.rmSync(dest + ".cortex-new", { force: true }); // a stale conflict copy from an older install
+      }
+      manifest.hashes[rel] = sha(data);
+      return report.updated.push(rel);
+    }
     if (!FORCE) {
       if (!DRY) fs.writeFileSync(dest + ".cortex-new", data);
       return report.conflict.push(rel);
@@ -112,6 +129,7 @@ function place(src, dest, mode = "template") {
       fs.copyFileSync(dest, dest + `.bak-${stamp()}`);
       fs.writeFileSync(dest, data);
     }
+    manifest.hashes[rel] = sha(data);
     return report.overwritten.push(rel);
   }
   if (!DRY) {
@@ -119,6 +137,7 @@ function place(src, dest, mode = "template") {
     fs.writeFileSync(dest, data);
   }
   if (!manifest.files.includes(rel)) manifest.files.push(rel);
+  if (mode === "template") manifest.hashes[rel] = sha(data);
   report.created.push(rel);
 }
 
@@ -368,7 +387,16 @@ else {
   const npx = process.platform === "win32" ? "npx" : findOnPath("npx");
   registerTool(
     "playwright",
-    npx && { type: "stdio", command: npx, args: ["-y", "@playwright/mcp@0.0.85"] },
+    npx && {
+      type: "stdio",
+      command: npx,
+      args: ["-y", "@playwright/mcp@0.0.85"],
+      // npx starts with `#!/usr/bin/env node`, so node must be on PATH even when Claude was
+      // opened from the Dock (which gives apps a bare PATH).
+      ...(process.platform === "win32"
+        ? {}
+        : { env: { PATH: [...new Set([path.dirname(process.execPath), path.dirname(npx), "/usr/local/bin", "/usr/bin", "/bin"])].join(":") } }),
+    },
     "skipped — npx was not found (it comes with Node.js)"
   );
 
@@ -440,6 +468,7 @@ console.log(DRY ? "Cortex install — DRY RUN, nothing was changed" : "Cortex in
 console.log(`  Claude config: ${fwd(CLAUDE)}\n  Vault:         ${fwd(VAULT)}`);
 line("Created", report.created);
 line("Already identical", report.same);
+line("Updated (you had not edited these)", report.updated);
 line("Overwritten (backup saved as .bak-*)", report.overwritten);
 line("CONFLICT — yours kept, template saved beside it as .cortex-new; merge by hand", report.conflict);
 console.log(`\nsettings.json: ${settingsChanged ? "hooks merged (backup saved)" : "already had the Cortex hooks"}`);

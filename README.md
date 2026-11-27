@@ -281,10 +281,10 @@ Keep the always-loaded layer small, because you pay for it in tokens on every si
 
 | File | In one line |
 |---|---|
-| `00-answering.md` | Big answers open with a **Progress %** table (Stage, Last move, Next move, Mistake), then plain English, then a short executive summary. Questions to you come as a one-word-answerable **Ask Block**. |
-| `01-receiving.md` | A short request is not a small one: before choosing a stack or scope you never named, Claude asks 3–5 questions, shows you the full spec, *then* builds. |
-| `02-discretion.md` | Four tiers: act alone (edits, local commits) → act then tell you, with the undo → ask first (push, spend, delete your stuff) → never (move money, handle passwords). Plus **COOK**: the default depth is exhaustion, not "good enough" — a loop (add, research, prune, verify by running) and a six-line done-gate before Claude may say "done". Say "keep cooking" when it stops early. |
-| `03-studio.md` | Picks the size of the team by the work: Solo (just do it), Squad (2–4 parallel subagents) or Studio (the `/studio` skill, for project-sized work). |
+| `00-answering.md` | Everyday answers stay short and lead with the result. Status reports and end-of-task summaries open with a **Progress %** table (Stage, Last move, Next move, Mistake), then plain English, then a short executive summary. Questions to you come as a one-word-answerable **Ask Block**. |
+| `01-receiving.md` | Small requests: Claude picks sensible defaults, states them in one line, and builds. Project-sized ones where a wrong guess would waste real work: at most three questions first, each with a recommended answer. Type `/prompt` for a full spec pass. |
+| `02-discretion.md` | Four tiers: act alone (edits, local commits) → act then tell you, with the undo → ask first (push, spend, delete your stuff) → never (move money, handle passwords). The default is "done properly": finish, verify by running, stop. **COOK** is opt-in maximum depth: say "COOK" (one task) or "COOK by default" and Claude loops (add, research, prune, verify) through a six-line done-gate before it may say "done". It uses much more of your plan's usage. |
+| `03-studio.md` | Solo by default. Squad (2–4 parallel subagents) only for clearly separable parts, and Studio (the `/studio` skill) only when you ask for it, because both multiply usage. |
 | `cortex-and-memory.md` | The memory layers above, and the triggers for `save state` and `/boot`. |
 | `delegation.md` | When to use subagents, and how to run an independent review without biasing the reviewer. |
 | `environment.md` | Machine hazards that each cost someone a session (JSON byte-order marks, shell quoting traps). Has a section for your own machine. |
