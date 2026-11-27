@@ -3,3 +3,6 @@ node_modules/
 *.bak-*
 .DS_Store
 Thumbs.db
+vscode-sidekick/dist/extension.js
+vscode-sidekick/dist/*.map
+vscode-sidekick/.vscode-test/

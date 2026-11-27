@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cortex is installed</title>
+<style>
+/* @theme */
+:root {
+  --paper: #ffffff;
+  --wash: #f3f8fd;
+  --wash-strong: #e6f0fa;
+  --line: #cfdeee;
+  --ink: #13233a;
+  --ink-soft: #435570;
+  --link: #1d5a96;
+  --pink: #e58aac;
+  --pink-ink: #ad2357;
+  --pink-wash: #fdf1f6;
+  --focus: #1d5a96;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+
+.page {
+  max-width: 68ch;
+  margin: 0;
+  padding-block: 4rem 3rem;
+  padding-inline: clamp(1.25rem, 6vw, 4.5rem);
+}
+
+/* ---------- header ---------- */
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 1.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.eyebrow::before {
+  content: "";
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 6px;
+  background: var(--pink);
+  flex: none;
+}
+
+h1, h2, h3 {
+  font-family: inherit;
+  color: var(--ink);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: clamp(2rem, 1.4rem + 2.6vw, 2.75rem);
+  font-weight: 700;
+  margin: 0 0 1rem;
+}
+
+.lede {
+  font-size: 1.1875rem;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.rule {
+  border: 0;
+  height: 2px;
+  width: 4rem;
+  background: var(--pink);
+  margin: 2.5rem 0 0;
+  border-radius: 6px;
+}
+
+/* ---------- sections ---------- */
+section { margin-top: 3.5rem; }
+
+h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+}
+
+h3 {
+  font-size: 1.0625rem;
+  font-weight: 650;
+  margin: 2rem 0 0.5rem;
+}
+
+.section-intro {
+  color: var(--ink-soft);
+  margin: 0 0 1.5rem;
+}
+
+p { margin: 0 0 1rem; }
+
+a {
+  color: var(--link);
+  text-decoration: underline;
+  text-decoration-color: var(--pink);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+a:hover { text-decoration-color: var(--link); }
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+code, pre, kbd {
+  font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.9em;
+}
+
+:not(pre) > code {
+  background: var(--wash-strong);
+  color: var(--ink);
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- try these ---------- */
+.steps {
+  list-style: none;
+  counter-reset: step;
+  margin: 0;
+  padding: 0;
+}
+.steps > li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 2.25rem;
+  margin-bottom: 1.75rem;
+}
+.steps > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0.05rem;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.steps .why {
+  margin: 0.5rem 0 0;
+  color: var(--ink-soft);
+}
+.steps .why strong { color: var(--ink); font-weight: 600; }
+
+/* ---------- code block with copy ---------- */
+.cmd {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  background: var(--wash);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.35rem 0.35rem 0.35rem 0;
+}
+.cmd pre {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0.5rem 0 0.5rem 0.9rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--ink);
+}
+.copy {
+  flex: none;
+  align-self: center;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  min-width: 5.25rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+.copy:hover { border-color: var(--ink-soft); }
+.copy.is-copied {
+  border-color: var(--pink);
+  background: var(--pink-wash);
+  color: var(--pink-ink);
+}
+
+/* ---------- what's installed ---------- */
+.items {
+  margin: 0;
+  padding: 0;
+}
+.items > div {
+  display: grid;
+  grid-template-columns: 11rem 1fr;
+  gap: 0.25rem 1.25rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--line);
+}
+.items > div:last-child { border-bottom: 1px solid var(--line); }
+.items dt { font-weight: 600; }
+.items dd { margin: 0; color: var(--ink-soft); }
+
+/* ---------- where things live ---------- */
+.paths {
+  margin: 0;
+  background: var(--wash);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.25rem 1.1rem;
+}
+.paths > div {
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--line);
+}
+.paths > div:first-child { border-top: 0; }
+.paths dt {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 0.2rem;
+}
+.paths dd { margin: 0; }
+.paths dd code { background: var(--paper); }
+.paths .note { color: var(--ink-soft); font-size: 0.9375rem; margin-top: 0.25rem; }
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 4.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+footer p { margin: 0; }
+
+/* ---------- small screens ---------- */
+@media (max-width: 560px) {
+  body { font-size: 1rem; }
+  .page { padding-block: 2.5rem 2rem; }
+  .items > div { grid-template-columns: 1fr; }
+  .steps > li { padding-left: 1.75rem; }
+  .cmd pre { padding-left: 0.7rem; }
+  .copy { min-width: 4.75rem; padding-inline: 0.6rem; }
+}
+</style>
+</head>
+<body>
+<main class="page">
+
+  <header>
+    <p class="eyebrow">Cortex for Claude Code</p>
+    <h1>Setup is done.</h1>
+    <p class="lede">Claude Code now remembers your work between sessions, saves every conversation as a note you can read, follows a few house rules, and refuses a short list of dangerous commands.</p>
+    <p class="lede" style="margin-top:1rem">One thing first: <strong>restart Claude Code</strong>. Rules and hooks only load when it starts. Then say <strong>personalise my Cortex setup</strong>, and it will fill in your profile by asking a few questions.</p>
+    <hr class="rule">
+  </header>
+
+  <section aria-labelledby="try">
+    <h2 id="try">Try these first</h2>
+    <p class="section-intro">Type each one into Claude Code. Plain words work too; these are just the shortest way in.</p>
+
+    <ol class="steps">
+      <li>
+        <div class="cmd"><pre><code>/boot</code></pre><button type="button" class="copy">Copy</button></div>
+        <p class="why"><strong>Start of a session.</strong> Claude reads your notes and tells you where you left off. On a fresh install it will say there is nothing yet, which is correct.</p>
+      </li>
+      <li>
+        <div class="cmd"><pre><code>save state</code></pre><button type="button" class="copy">Copy</button></div>
+        <p class="why"><strong>End of a session.</strong> Writes a short checkpoint (done, decided, open, next) so tomorrow's session can pick up cold.</p>
+      </li>
+      <li>
+        <div class="cmd"><pre><code>/prompt make a habit tracker</code></pre><button type="button" class="copy">Copy</button></div>
+        <p class="why"><strong>Before building anything vague.</strong> Claude asks a few questions, shows you the full spec, and only then writes code.</p>
+      </li>
+      <li>
+        <div class="cmd"><pre><code>/research &lt;your question&gt;</code></pre><button type="button" class="copy">Copy</button></div>
+        <p class="why"><strong>Before a choice you would have to defend.</strong> Finds what practitioners actually do and regret, then saves a decision note to your vault.</p>
+      </li>
+      <li>
+        <div class="cmd"><pre><code>open the file with the error and fix it</code></pre><button type="button" class="copy">Copy</button></div>
+        <p class="why"><strong>With VS Code open.</strong> Through the Sidekick extension, Claude can see your Problems panel and terminals, open the file, fix it, and show you the diff.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="installed">
+    <h2 id="installed">What's installed</h2>
+    <p class="section-intro">Everything is plain Markdown and small Node.js scripts. Read any of it, edit any of it, delete what you don't want.</p>
+
+    <h3>Memory and capture</h3>
+    <dl class="items">
+      <div><dt>Session capture</dt><dd>Every conversation is saved as a readable note in your vault, automatically.</dd></div>
+      <div><dt>Live state notes</dt><dd>One auto-updated note per chat: latest summary, recent asks, files changed.</dd></div>
+      <div><dt>Memory surfacing</dt><dd>When your prompt matches something Claude memorised, the full note is put in front of it.</dd></div>
+      <div><dt>Memory layers</dt><dd>Rules, memory, knowledge, states and sessions, each with one job, so facts don't drift.</dd></div>
+    </dl>
+
+    <h3>Rules</h3>
+    <dl class="items">
+      <div><dt>Answering</dt><dd>Big answers open with a progress table, then plain English, then a short summary.</dd></div>
+      <div><dt>Receiving</dt><dd>A short request gets a few questions and a spec before any code.</dd></div>
+      <div><dt>Discretion</dt><dd>What Claude does alone, what it tells you after, what it asks first, and what it never does.</dd></div>
+      <div><dt>Studio</dt><dd>When to work solo, with a few helpers, or as a full team of agents.</dd></div>
+      <div><dt>Environment, tooling</dt><dd>Machine hazards and which tool to reach for. Has a section for your own machine.</dd></div>
+    </dl>
+
+    <h3>Skills</h3>
+    <dl class="items">
+      <div><dt><code>/boot</code></dt><dd>Where did we leave off.</dd></div>
+      <div><dt><code>/save-state</code></dt><dd>Curated checkpoint at the end of a session.</dd></div>
+      <div><dt><code>/prompt</code></dt><dd>Turns a one-line idea into a real spec.</dd></div>
+      <div><dt><code>/research</code></dt><dd>Evidence-first decision notes.</dd></div>
+      <div><dt><code>/council</code></dt><dd>Five advisors stress-test a decision. Uses more subagents, so it costs more.</dd></div>
+    </dl>
+
+    <h3>Hooks and guardrail</h3>
+    <dl class="items">
+      <div><dt>Guardrail</dt><dd>Blocks wiping your home folder, <code>curl … | bash</code>, force-push and reading private keys; asks before email or config edits.</dd></div>
+      <div><dt>Context watch</dt><dd>Warns as the conversation fills up, and when Claude repeats the same command.</dd></div>
+      <div><dt>Post-compact</dt><dd>After a long chat is compacted, reminds Claude which files it already changed.</dd></div>
+      <div><dt>Audit log</dt><dd>Every block is written to <code>cortex/state/guardrail-blocked.log</code>.</dd></div>
+    </dl>
+
+    <h3>VS Code Sidekick</h3>
+    <dl class="items">
+      <div><dt>Editor tools</dt><dd>Claude can read your open file and selection, open a file at a line, and read the Problems panel.</dd></div>
+      <div><dt>Terminals</dt><dd>Runs commands in a visible "Claude" terminal and reads output from yours, like <code>npm run dev</code> errors.</dd></div>
+      <div><dt>Live edits</dt><dd>Files Claude changes open beside you with the new lines highlighted, plus Review diff and Revert.</dd></div>
+      <div><dt>Terminal safety</dt><dd>Every command Claude runs there is checked by the same guardrail first.</dd></div>
+    </dl>
+
+    <h3>Autonomous mode and studio</h3>
+    <dl class="items">
+      <div><dt><code>/aw</code></dt><dd>Keeps working through a queue while you're away. Never pushes, spends or deletes; parks decisions for you in <code>BLOCKERS.md</code>.</dd></div>
+      <div><dt><code>/studio</code></dt><dd>Runs a big task like a small company: research, a lead per team, independent reviewers, one plan.</dd></div>
+    </dl>
+  </section>
+
+  <section aria-labelledby="where">
+    <h2 id="where">Where things live</h2>
+    <p class="section-intro">Two folders. Your notes in one, Claude's setup in the other.</p>
+
+    <dl class="paths">
+      <div>
+        <dt>Your vault (notes)</dt>
+        <dd><code>{{VAULT}}</code></dd>
+        <dd class="note">Sessions, checkpoints and research notes. Open it in Obsidian or any editor. It holds everything you type to Claude, so keep it out of public repos.</dd>
+      </div>
+      <div>
+        <dt>Claude's setup</dt>
+        <dd><code>{{CLAUDE_DIR}}</code></dd>
+        <dd class="note">Rules, skills, hooks, the capture engine and memory. Start with <code>CLAUDE.md</code> to personalise.</dd>
+      </div>
+      <div>
+        <dt>VS Code Sidekick</dt>
+        <dd>{{SIDEKICK_STATUS}}</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section aria-labelledby="undo">
+    <h2 id="undo">Undo</h2>
+    <p>From the folder you installed from, <code>{{REPO_DIR}}</code>, run:</p>
+    <div class="cmd"><pre><code>node uninstall.mjs</code></pre><button type="button" class="copy">Copy</button></div>
+    <p class="why" style="margin-top:0.75rem;color:var(--ink-soft)">It removes only what Cortex added and moves those files to a dated backup folder instead of deleting them. Your vault is never touched. Add <code>--dry-run</code> to preview first.</p>
+  </section>
+
+  <footer>
+    <p>Source, updates and issues: <a href="{{REPO_URL}}">{{REPO_URL}}</a>. Free and MIT licensed.</p>
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  function flash(btn, label) {
+    btn.textContent = label;
+    btn.classList.toggle("is-copied", label === "Copied");
+    clearTimeout(btn._t);
+    btn._t = setTimeout(function () {
+      btn.textContent = "Copy";
+      btn.classList.remove("is-copied");
+    }, 1500);
+  }
+
+  document.querySelectorAll(".copy").forEach(function (btn) {
+    var code = btn.parentNode.querySelector("code");
+    btn.setAttribute("aria-live", "polite");
+    btn.addEventListener("click", function () {
+      var text = code.textContent;
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(
+          function () { flash(btn, "Copied"); },
+          function () { flash(btn, fallbackCopy(text) ? "Copied" : "Press Ctrl+C"); }
+        );
+      } else {
+        flash(btn, fallbackCopy(text) ? "Copied" : "Press Ctrl+C");
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>

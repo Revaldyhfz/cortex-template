@@ -18,8 +18,27 @@ const HOME = path.join(TMP, "home");
 const VAULT = path.join(TMP, "vault");
 fs.mkdirSync(HOME, { recursive: true });
 const CLAUDE = path.join(HOME, ".claude");
-const env = { ...process.env, HOME, USERPROFILE: HOME, GUARDRAIL_LOG: path.join(TMP, "guard.log") };
+// Fake `code` and `claude` CLIs first on PATH: they log their arguments, so the VS Code
+// path of the installer is exercised without touching this machine's real VS Code or Claude.
+const BIN = path.join(TMP, "bin");
+const CLI_LOG = path.join(TMP, "cli.log");
+fs.mkdirSync(BIN);
+fs.writeFileSync(
+  path.join(BIN, "shim.cjs"),
+  'const a = process.argv.slice(2); require("fs").appendFileSync(process.env.CLI_LOG, a.join(" ") + "\\n"); process.exit(a[1] === "mcp" && a[2] === "get" ? 1 : 0);'
+);
+for (const name of ["code", "claude"]) {
+  if (process.platform === "win32") fs.writeFileSync(path.join(BIN, name + ".cmd"), `@"${process.execPath}" "%~dp0shim.cjs" ${name} %*
+`);
+  else fs.writeFileSync(path.join(BIN, name), `#!/bin/sh
+exec "${process.execPath}" "$(dirname "$0")/shim.cjs" ${name} "$@"
+`, { mode: 0o755 });
+}
+const env = { ...process.env, HOME, USERPROFILE: HOME, GUARDRAIL_LOG: path.join(TMP, "guard.log"), CLI_LOG };
+const pathKey = Object.keys(env).find((k) => k.toUpperCase() === "PATH") || "PATH";
+env[pathKey] = BIN + path.delimiter + env[pathKey];
 delete env.CLAUDE_CONFIG_DIR;
+const cliLog = () => (fs.existsSync(CLI_LOG) ? fs.readFileSync(CLI_LOG, "utf8") : "");
 
 let pass = 0;
 let fail = 0;
@@ -41,7 +60,7 @@ fs.writeFileSync(
 );
 
 // ---- install
-let r = run(path.join(REPO, "install.mjs"), "", ["--vault", VAULT]);
+let r = run(path.join(REPO, "install.mjs"), "", ["--vault", VAULT, "--no-open"]);
 ok(r.status === 0, "install exits 0", r.stderr);
 ok(fs.readFileSync(path.join(CLAUDE, "CLAUDE.md"), "utf8") === "# my own notes\n", "existing CLAUDE.md kept");
 ok(fs.existsSync(path.join(CLAUDE, "CLAUDE.md.cortex-new")), "template saved beside it as .cortex-new");
@@ -49,9 +68,9 @@ ok(fs.readdirSync(CLAUDE).some((f) => f.startsWith("settings.json.bak-cortex-"))
 const settings = JSON.parse(fs.readFileSync(path.join(CLAUDE, "settings.json"), "utf8"));
 const count = () =>
   Object.values(JSON.parse(fs.readFileSync(path.join(CLAUDE, "settings.json"), "utf8")).hooks || {}).flat().length;
-ok(count() === 7, "six Cortex hook groups merged beside the user's own", `got ${count()}`);
+ok(count() === 10, "nine Cortex hook groups merged beside the user's own", `got ${count()}`);
 ok(settings.autoMemoryDirectory === "~/.claude/memory", "autoMemoryDirectory set");
-for (const f of ["CLAUDE.md", "rules/00-answering.md", "skills/boot/SKILL.md", "hooks/guardrail.js", "cortex/cortex-sync.js", "memory/MEMORY.md"])
+for (const f of ["CLAUDE.md", "rules/00-answering.md", "rules/03-studio.md", "skills/boot/SKILL.md", "skills/studio/SKILL.md", "skills/aw/SKILL.md", "hooks/guardrail.js", "hooks/sidekick-notify.js", "autonomous/autonomous.js", "cortex/cortex-sync.js", "memory/MEMORY.md"])
   ok(fs.existsSync(path.join(CLAUDE, f)), `installed ${f}`);
 ok(fs.existsSync(path.join(VAULT, "Cortex", "Knowledge", "PREFERENCES.md")), "vault skeleton created");
 const leftover = ["rules/cortex-and-memory.md", "skills/boot/SKILL.md", "CLAUDE.md"].filter((f) =>
@@ -59,8 +78,19 @@ const leftover = ["rules/cortex-and-memory.md", "skills/boot/SKILL.md", "CLAUDE.
 );
 ok(leftover.length === 0, "<VAULT> placeholder filled in", leftover.join(", "));
 
-r = run(path.join(REPO, "install.mjs"), "", ["--vault", VAULT]);
-ok(r.status === 0 && count() === 7, "re-install is idempotent (no duplicate hooks)", `got ${count()}`);
+// ---- VS Code Sidekick wiring (against the fake CLIs)
+const log1 = cliLog();
+ok(/code --install-extension .*cortex-sidekick.vsix/.test(log1), "installer installs the VS Code extension", log1);
+const conn = JSON.parse(fs.readFileSync(path.join(CLAUDE, "cortex", "sidekick.json"), "utf8"));
+ok(conn.port === 7341 && /^[0-9a-f]{64}$/.test(conn.token), "sidekick.json written with a 256-bit token, BOM-less");
+ok(log1.includes(`claude mcp add --scope user --transport http vscode http://127.0.0.1:7341/mcp --header Authorization: Bearer ${conn.token}`), "installer registers the MCP server with that token", log1);
+const welcome = fs.readFileSync(path.join(CLAUDE, "cortex", "welcome.html"), "utf8");
+ok(!/{{[A-Z_]+}}/.test(welcome) && welcome.includes(fwd(VAULT)) && welcome.includes("installed"), "welcome page rendered with every token filled", (welcome.match(/{{[A-Z_]+}}/g) || []).join(" "));
+r = hook("hooks/sidekick-notify.js", { hook_event_name: "PreToolUse", tool_name: "Edit", tool_input: { file_path: path.join(TMP, "x.ts") } });
+ok(r.status === 0 && r.stdout === "", "sidekick-notify is silent and harmless with VS Code closed");
+
+r = run(path.join(REPO, "install.mjs"), "", ["--vault", VAULT, "--no-open"]);
+ok(r.status === 0 && count() === 10 && JSON.parse(fs.readFileSync(path.join(CLAUDE, "cortex", "sidekick.json"), "utf8")).token === conn.token, "re-install is idempotent (no duplicate hooks, same token)", `got ${count()}`);
 
 // ---- guardrail
 const guard = (tool, input) => {
@@ -140,6 +170,7 @@ ok(r.stdout.includes("/tmp/x.txt"), "post-compact lists recently written files")
 // ---- uninstall
 r = run(path.join(REPO, "uninstall.mjs"), "");
 ok(r.status === 0, "uninstall exits 0", r.stderr);
+ok(/claude mcp remove vscode -s user/.test(cliLog()) && /code --uninstall-extension cortex-template.cortex-sidekick/.test(cliLog()), "uninstall removes the MCP server and the extension", cliLog());
 const after = JSON.parse(fs.readFileSync(path.join(CLAUDE, "settings.json"), "utf8"));
 ok(JSON.stringify(after.hooks) === JSON.stringify({ Stop: [{ hooks: [{ type: "command", command: "echo mine" }] }] }) && after.model === "sonnet" && !after.autoMemoryDirectory, "uninstall removed only Cortex hooks; user settings intact", JSON.stringify(after));
 ok(fs.readFileSync(path.join(CLAUDE, "CLAUDE.md"), "utf8") === "# my own notes\n", "uninstall left the user's own CLAUDE.md");

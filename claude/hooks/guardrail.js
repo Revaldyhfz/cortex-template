@@ -375,8 +375,12 @@ function gitBypass(statement, depth) {
   });
 }
 
+// An MCP tool that runs a shell command (input field `command`) is a shell tool too,
+// or every shell rule above could be sidestepped by routing the command through it.
+const SHELL_TOOLS = new Set(["Bash", "PowerShell", "mcp__vscode__terminal_run"]);
+
 function isShell(tool) {
-  return tool === "Bash" || tool === "PowerShell";
+  return SHELL_TOOLS.has(tool);
 }
 
 /** Match `name` only in command position and as a whole token (`\b` treats `-` as a boundary). */

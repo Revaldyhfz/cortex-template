@@ -7,6 +7,8 @@
  *   node install.mjs --vault "D:/Notes"    # vault somewhere else (an existing Obsidian vault is fine)
  *   node install.mjs --dry-run             # show what would happen, change nothing
  *   node install.mjs --force               # overwrite files that already exist (backups are still made)
+ *   node install.mjs --no-vscode           # skip the VS Code Sidekick (extension + MCP registration)
+ *   node install.mjs --no-open             # do not open the welcome page at the end
  *
  * Safe by default:
  *   - An existing file with different content is NOT overwritten. The template version is
@@ -19,6 +21,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const REPO = path.dirname(fileURLToPath(import.meta.url));
@@ -36,6 +40,8 @@ if (flag("--help") || flag("-h")) {
 
 const DRY = flag("--dry-run");
 const FORCE = flag("--force");
+const NO_VSCODE = flag("--no-vscode");
+const NO_OPEN = flag("--no-open");
 const HOME = os.homedir();
 const CLAUDE = process.env.CLAUDE_CONFIG_DIR || path.join(HOME, ".claude");
 const expandHome = (p) => (p.startsWith("~") ? path.join(HOME, p.slice(1)) : p);
@@ -57,6 +63,8 @@ const manifest = {
   files: prior ? prior.files : [], // files this installer CREATED (safe for uninstall to remove)
   settingsBackup: prior ? prior.settingsBackup : null,
   setAutoMemoryDirectory: prior ? prior.setAutoMemoryDirectory : false,
+  vscodeExtension: prior ? !!prior.vscodeExtension : false,
+  mcpServer: prior ? !!prior.mcpServer : false,
 };
 const report = { created: [], same: [], conflict: [], overwritten: [] };
 
@@ -178,7 +186,10 @@ const WANT = [
     script: "hooks/guardrail.js",
     timeout: 10,
   },
+  { event: "Stop", script: "autonomous/autonomous.js", timeout: 10 },
   { event: "PostToolUse", script: "hooks/context-watch.js", timeout: 5 },
+  { event: "PreToolUse", matcher: "Write|Edit|MultiEdit|NotebookEdit", script: "hooks/sidekick-notify.js", timeout: 5 },
+  { event: "PostToolUse", matcher: "Write|Edit|MultiEdit|NotebookEdit", script: "hooks/sidekick-notify.js", timeout: 5 },
   { event: "SessionStart", matcher: "compact", script: "hooks/post-compact.js", timeout: 10 },
   {
     event: "UserPromptSubmit",
@@ -216,7 +227,88 @@ if (settingsChanged && !DRY) {
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
 }
 
-// ---------------------------------------------------------------- 4. manifest + report
+// ---------------------------------------------------------------- 4. VS Code Sidekick
+
+/** Run a CLI. On Windows `code` and `claude` may be .cmd shims, which need a shell. */
+function sh(cmd, argv) {
+  const win = process.platform === "win32";
+  const q = (a) => (/[\s"]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a);
+  const r = win
+    ? spawnSync([cmd, ...argv].map(q).join(" "), { shell: true, encoding: "utf8", timeout: 120000 })
+    : spawnSync(cmd, argv, { encoding: "utf8", timeout: 120000 });
+  return { ok: r.status === 0, out: `${r.stdout || ""}${r.stderr || ""}`.trim(), missing: r.error?.code === "ENOENT" || r.status === 127 || /not recognized|not found/i.test(r.stderr || "") };
+}
+const has = (cmd) => sh(cmd, ["--version"]).ok;
+
+const sidekick = { status: "skipped (--no-vscode)", notes: [] };
+const VSIX = path.join(REPO, "vscode-sidekick", "dist", "cortex-sidekick.vsix");
+if (!NO_VSCODE) {
+  const connPath = path.join(CLAUDE, "cortex", "sidekick.json");
+  let conn = readJson(connPath, null);
+  if (!conn || typeof conn.token !== "string" || conn.token.length < 32) {
+    conn = { port: 7341, token: crypto.randomBytes(32).toString("hex") };
+    if (!DRY) {
+      fs.mkdirSync(path.dirname(connPath), { recursive: true });
+      fs.writeFileSync(connPath, JSON.stringify(conn, null, 2) + "\n", { mode: 0o600 }); // BOM-less
+    }
+  }
+  const haveCode = has("code");
+  const haveClaude = has("claude");
+  if (!haveCode) sidekick.notes.push("VS Code's `code` command was not found. Install VS Code, run \"Shell Command: Install 'code' command in PATH\" (macOS) if needed, then re-run the installer.");
+  else if (!fs.existsSync(VSIX)) sidekick.notes.push(`Extension package missing at ${fwd(VSIX)}; run \`npm run package\` in vscode-sidekick/.`);
+  else if (!DRY) {
+    const r = sh("code", ["--install-extension", VSIX, "--force"]);
+    if (r.ok) manifest.vscodeExtension = true;
+    else sidekick.notes.push("Installing the VS Code extension failed: " + r.out.slice(0, 300));
+  }
+  if (!haveClaude) sidekick.notes.push("The `claude` command was not found, so the MCP server was not registered. Re-run the installer from a terminal where `claude --version` works.");
+  else if (!DRY) {
+    const url = `http://127.0.0.1:${conn.port}/mcp`;
+    const existing = sh("claude", ["mcp", "get", "vscode"]);
+    if (existing.ok && !existing.out.includes(url) && !FORCE) {
+      sidekick.notes.push("An MCP server named \"vscode\" already exists and is not the Sidekick; left it alone (re-run with --force to replace it).");
+    } else {
+      if (existing.ok) sh("claude", ["mcp", "remove", "vscode", "-s", "user"]);
+      const r = sh("claude", ["mcp", "add", "--scope", "user", "--transport", "http", "vscode", url, "--header", `Authorization: Bearer ${conn.token}`]);
+      if (r.ok) manifest.mcpServer = true;
+      else sidekick.notes.push("Registering the MCP server failed: " + r.out.slice(0, 300));
+    }
+  }
+  sidekick.status = DRY
+    ? `would install (code: ${haveCode ? "found" : "missing"}, claude: ${haveClaude ? "found" : "missing"})`
+    : manifest.vscodeExtension && manifest.mcpServer
+      ? `installed — extension in VS Code, MCP server "vscode" on 127.0.0.1:${conn.port}`
+      : manifest.vscodeExtension || manifest.mcpServer
+        ? "partly installed — see the installer output"
+        : "not installed — see the installer output";
+}
+
+// ---------------------------------------------------------------- 5. welcome page
+
+function repoUrl() {
+  const r = spawnSync("git", ["-C", REPO, "remote", "get-url", "origin"], { encoding: "utf8" });
+  const u = (r.status === 0 ? r.stdout.trim() : "")
+    .replace(/^git@github\.com:/, "https://github.com/")
+    .replace(/\/\/[^@/]+@/, "//") // drop any embedded credentials
+    .replace(/\.git$/, "");
+  return /^https:\/\//.test(u) ? u : "https://github.com/";
+}
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const welcomeSrc = path.join(REPO, "welcome", "welcome.html");
+const welcomeDest = path.join(CLAUDE, "cortex", "welcome.html");
+if (fs.existsSync(welcomeSrc) && !DRY) {
+  const html = fs
+    .readFileSync(welcomeSrc, "utf8")
+    .split("{{VAULT}}").join(esc(fwd(VAULT)))
+    .split("{{CLAUDE_DIR}}").join(esc(fwd(CLAUDE)))
+    .split("{{REPO_DIR}}").join(esc(fwd(REPO)))
+    .split("{{REPO_URL}}").join(esc(repoUrl()))
+    .split("{{SIDEKICK_STATUS}}").join(esc(sidekick.status));
+  fs.mkdirSync(path.dirname(welcomeDest), { recursive: true });
+  fs.writeFileSync(welcomeDest, html);
+}
+
+// ---------------------------------------------------------------- 6. manifest + report
 
 if (!DRY) {
   fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
@@ -231,10 +323,22 @@ line("Already identical", report.same);
 line("Overwritten (backup saved as .bak-*)", report.overwritten);
 line("CONFLICT — yours kept, template saved beside it as .cortex-new; merge by hand", report.conflict);
 console.log(`\nsettings.json: ${settingsChanged ? "hooks merged (backup saved)" : "already had the Cortex hooks"}`);
+console.log(`VS Code Sidekick: ${sidekick.status}`);
+for (const n of sidekick.notes) console.log(`  ! ${n}`);
 console.log(`
 Next:
-  1. Restart Claude Code (hooks and rules load at startup).
-  2. Open Claude Code and paste the "personalise" prompt from README.md, so it fills in
-     ~/.claude/CLAUDE.md with your details.
+  1. Restart Claude Code (hooks, rules and MCP servers load at startup).
+     If VS Code was already open, reload its window once (Ctrl/Cmd+Shift+P → "Reload Window").
+  2. In Claude Code, say "personalise my Cortex setup" — it fills in ~/.claude/CLAUDE.md
+     by asking you a few questions.
   3. Have a short chat, then check ${fwd(path.join(VAULT, "Cortex", "Sessions"))} for the captured note.
+  Welcome page: ${fwd(welcomeDest)}
   Undo everything: node uninstall.mjs`);
+
+if (!DRY && !NO_OPEN && fs.existsSync(welcomeDest)) {
+  const opener =
+    process.platform === "win32" ? ["cmd", ["/c", "start", "", welcomeDest]] : process.platform === "darwin" ? ["open", [welcomeDest]] : ["xdg-open", [welcomeDest]];
+  try {
+    spawnSync(opener[0], opener[1], { stdio: "ignore", timeout: 10000 });
+  } catch {}
+}

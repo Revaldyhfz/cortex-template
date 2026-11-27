@@ -16,6 +16,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { spawnSync } from "node:child_process";
 
 const DRY = process.argv.includes("--dry-run");
 const HOME = os.homedir();
@@ -34,7 +35,7 @@ try {
 }
 
 // 1. settings.json: drop only the hook entries that point at Cortex scripts.
-const OURS = ["cortex-sync.js", "guardrail.js", "context-watch.js", "post-compact.js", "memory-surface.js"];
+const OURS = ["cortex-sync.js", "guardrail.js", "context-watch.js", "post-compact.js", "memory-surface.js", "sidekick-notify.js", "autonomous.js"];
 const settingsPath = path.join(CLAUDE, "settings.json");
 let removedHooks = 0;
 if (fs.existsSync(settingsPath)) {
@@ -61,7 +62,18 @@ if (fs.existsSync(settingsPath)) {
   }
 }
 
-// 2. Move every file the installer created, plus the engine's own state folder.
+// 2. VS Code Sidekick: unregister the MCP server and remove the extension, if we added them.
+function sh(cmd, argv) {
+  const win = process.platform === "win32";
+  const q = (a) => (/[\s"]/.test(a) ? `"${a}"` : a);
+  const r = win ? spawnSync([cmd, ...argv].map(q).join(" "), { shell: true, encoding: "utf8", timeout: 120000 }) : spawnSync(cmd, argv, { encoding: "utf8", timeout: 120000 });
+  return r.status === 0;
+}
+const external = [];
+if (manifest.mcpServer) external.push(`MCP server "vscode": ${DRY ? "would remove" : sh("claude", ["mcp", "remove", "vscode", "-s", "user"]) ? "removed" : "could not remove (run: claude mcp remove vscode -s user)"}`);
+if (manifest.vscodeExtension) external.push(`VS Code extension: ${DRY ? "would remove" : sh("code", ["--uninstall-extension", "cortex-template.cortex-sidekick"]) ? "removed" : "could not remove (run: code --uninstall-extension cortex-template.cortex-sidekick)"}`);
+
+// 3. Move every file the installer created, plus the engine's own state folder.
 const moved = [];
 const move = (abs) => {
   if (!fs.existsSync(abs)) return;
@@ -78,8 +90,8 @@ const move = (abs) => {
 // per-file moves below never pre-create its destination.
 move(path.join(CLAUDE, "cortex"));
 for (const f of manifest.files || []) move(path.resolve(f));
-for (const d of ["boot", "save-state", "prompt", "research", "council"]) {
-  const dir = path.join(CLAUDE, "skills", d);
+for (const d of ["skills/boot", "skills/save-state", "skills/prompt", "skills/research", "skills/council", "skills/studio", "skills/aw", "skills/personalise", "autonomous"]) {
+  const dir = path.join(CLAUDE, d);
   try {
     if (!DRY && fs.existsSync(dir) && !fs.readdirSync(dir).length) fs.rmdirSync(dir);
   } catch {}
@@ -87,6 +99,7 @@ for (const d of ["boot", "save-state", "prompt", "research", "council"]) {
 
 console.log(DRY ? "Cortex uninstall — DRY RUN, nothing was changed" : "Cortex uninstall — done");
 console.log(`  Hook entries removed from settings.json: ${removedHooks}`);
+for (const e of external) console.log("  " + e);
 console.log(`  Files moved (${moved.length}) to ${fwd(TRASH)}`);
 for (const m of moved) console.log("   - " + m);
 console.log(`\nYour vault was not touched: ${manifest.vault}\nRestart Claude Code to finish.`);

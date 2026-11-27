@@ -12,6 +12,24 @@ scripts), with no service and no account to sign up for.
 
 ---
 
+## Fastest setup: give Claude the link
+
+1. Install [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) (the desktop
+   app or the terminal version), plus **Node.js 18+** and **git**. VS Code is optional.
+2. Open Claude Code and paste this, with the link you were given:
+
+   ```text
+   Set up <the GitHub link you were given> for me. Follow its SETUP.md.
+   ```
+
+Claude clones the repo, reads the installer, tells you what will change, asks **one**
+question (where to keep your notes), installs, runs the tests and opens a welcome page.
+Then restart Claude Code and say **"personalise my Cortex setup"**. That's it.
+
+The rest of this README is the manual route and the reference.
+
+---
+
 ## What you get
 
 | Piece | What it does for you |
@@ -24,6 +42,9 @@ scripts), with no service and no account to sign up for.
 | **Guardrail hook** | Blocks a small set of never-intended actions (wiping your home folder, `curl … \| bash`, force-push, reading SSH private keys) and asks before sending email or editing its own config. |
 | **Memory surfacing** | When your prompt matches something Claude memorised earlier, the full note is put in front of it automatically. |
 | **Context watch** | Warns when the conversation is getting full (50/70/85%) and when Claude repeats the same command five times in a row. |
+| **VS Code Sidekick** | An extension plus MCP server that lets the Claude desktop app work *beside* you in VS Code: edits open with the changed lines highlighted (one-click Revert / Open diff), it reads your Problems panel and terminal errors, and runs commands in a visible VS Code terminal. |
+| **Autonomous mode (`/aw`)** | "I'll be away for 3 hours": Claude keeps working through a queue file until the deadline, then writes a report. A hook enforces the deadline, a turn cap and an empty-queue check. |
+| **Studio (`/studio`)** | Big work run like a small company: research tracks, a director, one agent per component, independent reviewers, and a master plan with at most eight one-word decisions for you. |
 | **More skills** | `/prompt` (turn a one-line request into a real spec), `/research` (evidence-first decision notes), `/council` (five AI advisors stress-test a decision). |
 
 **Why bother?** Out of the box, every Claude Code session starts from zero. Cortex gives it a
@@ -90,10 +111,10 @@ Run `claude` once and log in through the browser before going on.
 
 ### 1. Get this repo
 
-Use the GitHub link you were given (replace `<OWNER>`):
+Use the GitHub link you were given:
 
 ```bash
-git clone https://github.com/<OWNER>/cortex-template.git
+git clone <the link you were given> cortex-template
 cd cortex-template
 ```
 
@@ -118,16 +139,21 @@ Want to see what it would do first? Add `--dry-run`. It changes nothing.
 
 - Copies rules, skills, hooks and the capture engine into `~/.claude/`.
 - Creates the vault folders (`Cortex/Sessions`, `Cortex/States`, `Cortex/Knowledge`).
-- **Merges** six hook entries into `~/.claude/settings.json` after backing it up. It never
+- **Merges** nine hook entries into `~/.claude/settings.json` after backing it up. It never
   replaces your existing settings or hooks.
 - **Never overwrites** a file you already have. If you already have a `~/.claude/CLAUDE.md`,
   the template is saved next to it as `CLAUDE.md.cortex-new` for you to merge.
+- **VS Code Sidekick** (if the `code` command exists): installs the extension from
+  `vscode-sidekick/dist/`, creates a private access token in `~/.claude/cortex/sidekick.json`,
+  and registers it with `claude mcp add` as a server named `vscode`. Skip with `--no-vscode`.
+- Opens a welcome page (`~/.claude/cortex/welcome.html`) at the end. Skip with `--no-open`.
 - Records everything it created in `~/.claude/cortex/install-manifest.json`, so
   `uninstall.mjs` can undo exactly that.
 
 ### 3. Personalise (2 minutes, done by Claude)
 
-**Restart Claude Code** (rules and hooks only load at startup), then paste this:
+**Restart Claude Code** (rules and hooks only load at startup), then say
+**"personalise my Cortex setup"**. That runs the `personalise` skill, which does this:
 
 ```text
 I just installed the Cortex template (rules in ~/.claude/rules, skills in
@@ -165,28 +191,15 @@ those files control Claude's behaviour, so changing them always needs your click
    hook were not loaded, this would just fail, because the folder has no remote.)
 
 Optional, for the curious: `node test/smoke.mjs` runs an end-to-end test in a throwaway
-folder (your real setup is untouched). It should print `50 passed, 0 failed`.
+folder (your real setup is untouched). It should print `61 passed, 0 failed`. It uses fake `code` and `claude` commands, so
+your real VS Code and Claude settings are untouched.
 
 ---
 
 ## Paste-this-to-Claude: one-shot setup
 
-Prefer to let Claude do the whole thing? Install the prerequisites (step 0), start `claude`
-in any folder, and paste:
-
-```text
-Set up the Cortex template for me from https://github.com/<OWNER>/cortex-template.
-
-1. Clone it into a folder called cortex-template inside my home directory (use
-   `gh repo clone` if the repo is private and gh is logged in; otherwise git clone).
-2. Read README.md, install.mjs and uninstall.mjs before running anything, and tell me
-   in two lines what the installer will change.
-3. Ask me where I want my notes vault (suggest ~/Cortex-Vault), then run
-   `node install.mjs --dry-run --vault "<my answer>"` and show me the result.
-4. When I say yes, run it for real, then run `node test/smoke.mjs` and show the result.
-5. Tell me to restart Claude Code, and give me the "Personalise" prompt from the README
-   to paste after the restart.
-```
+See **Fastest setup** at the top. The step-by-step instructions Claude follows are in
+[`SETUP.md`](SETUP.md), so you can read exactly what it will do.
 
 ---
 
@@ -194,12 +207,16 @@ Set up the Cortex template for me from https://github.com/<OWNER>/cortex-templat
 
 ```text
 cortex-template/                 (this repo: keep it, it's how you update or uninstall)
+├── SETUP.md                          what Claude follows when you say "set this up"
 ├── install.mjs / uninstall.mjs
 ├── claude/            ──copied to──►  ~/.claude/
 │   ├── CLAUDE.md                       your machine-wide facts (personalise this)
 │   ├── rules/*.md                      always-loaded instructions
-│   ├── skills/<name>/SKILL.md          /boot, /save-state, /prompt, /research, /council
-│   ├── hooks/*.js                      guardrail, memory surfacing, context watch, post-compact
+│   ├── skills/<name>/SKILL.md          /boot, /save-state, /personalise, /prompt, /research,
+│   │                                   /council, /aw, /studio
+│   ├── hooks/*.js                      guardrail, memory surfacing, context watch,
+│   │                                   post-compact, sidekick-notify
+│   ├── autonomous/                     the /aw hook, its charter and a queue template
 │   ├── cortex/cortex-sync.js           the capture engine
 │   └── memory/                         auto-memory folder (seeded with one example)
 ├── vault/Cortex/      ──copied to──►  <your vault>/Cortex/
@@ -211,7 +228,9 @@ cortex-template/                 (this repo: keep it, it's how you update or uni
 │       ├── PREFERENCES.md              how you like to work; Claude appends corrections
 │       ├── research/                   /research decision notes
 │       └── templates/executive-summary.html
-└── test/smoke.mjs                      end-to-end test (throwaway folder)
+├── vscode-sidekick/                  the VS Code extension (source + built .vsix)
+├── welcome/welcome.html              the page that opens after install
+└── test/                             smoke, guardrail and autonomous-mode tests
 ```
 
 `~` means your home folder: `C:\Users\<you>` on Windows, `/Users/<you>` on macOS,
@@ -219,7 +238,8 @@ cortex-template/                 (this repo: keep it, it's how you update or uni
 
 Created at runtime in `~/.claude/cortex/`: `cortex-config.json` (holds the vault path),
 `cortex.log` (capture health), `checkpoints/`, `sessions-index.json`, and `state/` (hook
-state plus `guardrail-blocked.log`, an audit trail of every block).
+state plus `guardrail-blocked.log`, an audit trail of every block), `sidekick.json` (the
+VS Code Sidekick's port and private token) and `welcome.html`.
 
 ---
 
@@ -250,7 +270,8 @@ Keep the always-loaded layer small, because you pay for it in tokens on every si
 |---|---|
 | `00-answering.md` | Big answers open with a **Progress %** table (Stage, Last move, Next move, Mistake), then plain English, then a short executive summary. Questions to you come as a one-word-answerable **Ask Block**. |
 | `01-receiving.md` | A short request is not a small one: before choosing a stack or scope you never named, Claude asks 3–5 questions, shows you the full spec, *then* builds. |
-| `02-discretion.md` | Four tiers: act alone (edits, local commits) → act then tell you, with the undo → ask first (push, spend, delete your stuff) → never (move money, handle passwords). Plus "finish the job, don't stop at good enough". |
+| `02-discretion.md` | Four tiers: act alone (edits, local commits) → act then tell you, with the undo → ask first (push, spend, delete your stuff) → never (move money, handle passwords). Plus **COOK**: the default depth is exhaustion, not "good enough" — a loop (add, research, prune, verify by running) and a six-line done-gate before Claude may say "done". Say "keep cooking" when it stops early. |
+| `03-studio.md` | Picks the size of the team by the work: Solo (just do it), Squad (2–4 parallel subagents) or Studio (the `/studio` skill, for project-sized work). |
 | `cortex-and-memory.md` | The memory layers above, and the triggers for `save state` and `/boot`. |
 | `delegation.md` | When to use subagents, and how to run an independent review without biasing the reviewer. |
 | `environment.md` | Machine hazards that each cost someone a session (JSON byte-order marks, shell quoting traps). Has a section for your own machine. |
@@ -267,6 +288,9 @@ when it applies.
 | `/save-state` | Ending a session, or before something risky: "save state". |
 | `/prompt` | You have a vague idea ("make a habit tracker") and want a real spec first. |
 | `/research` | Choosing a library, tool or architecture you'd have to defend later. |
+| `/personalise` | Right after installing: fills in your profile by detecting what it can and asking the rest. |
+| `/aw <hours>` | You're stepping away and want work to continue. Write tasks in a `QUEUE.md`; Claude works through them until the deadline, then reports. `/aw off` stops it. |
+| `/studio` | Project-sized work: a build, a redesign, an audit, research that decides weeks of work. Uses many subagents, so it costs more. |
 | `/council` | A real either/or decision where you don't trust a single confident answer. Uses 6–11 subagents, so it costs more. |
 
 ### Hooks (`~/.claude/hooks/` and `~/.claude/cortex/`)
@@ -280,9 +304,45 @@ Hooks are scripts Claude Code runs automatically at certain moments. They're reg
 | `guardrail.js` | before every tool call (`PreToolUse`) | **Deny:** wiping drive/home/system folders, disk formatting, `curl … \| bash`, force-push, skipping git hooks, reading private keys, deleting a repo or moving money via an MCP tool. **Ask:** sending email or calendar changes, pushing via MCP, editing settings/rules/CLAUDE.md, firewall/SSH changes. Silent on everything else. |
 | `memory-surface.js` | when you send a prompt (`UserPromptSubmit`) | If your prompt matches a memory's name, description or `triggers:`, the memory body is injected so Claude actually uses it. |
 | `context-watch.js` | after every tool call (`PostToolUse`) | Warns at 50/70/85% of the context window, and on 5 identical tool calls in a row. |
+| `sidekick-notify.js` | before and after Claude writes a file (`PreToolUse` / `PostToolUse`) | Tells the VS Code Sidekick which file is about to change and when it changed, so it can open it with exact highlights and an exact Revert. Silent when VS Code is closed. |
+| `autonomous.js` | after every reply (`Stop`) | Only while `/aw` is armed: keeps the session going until the deadline, the turn cap, or a verifiably empty queue. Never traps a session: any error lets it stop. |
 | `post-compact.js` | after the conversation is compacted (`SessionStart`, `compact`) | Lists the files this session already changed, so Claude doesn't redo finished work. |
 
 Every hook is written to **never break your session**: on any error it exits quietly.
+
+---
+
+## VS Code Sidekick
+
+The Claude desktop app works in its own window; the Sidekick makes it act like a second
+person sitting beside you in VS Code.
+
+| You want | What happens |
+|---|---|
+| To see Claude's changes | When Claude edits a file, VS Code opens it beside your work (without stealing focus) with the changed lines highlighted. The status bar shows **Claude edited N files**; click it to **Open diff**, **Revert** or **Accept**. |
+| Claude to see your errors | It reads VS Code's Problems panel (every linter and type checker you have), the output of commands you ran yourself in VS Code terminals, and the Debug Console. |
+| Claude to run things | It runs commands in a visible VS Code terminal named **Claude**, so you watch them happen, and it reads back the output and whether it failed. Every command goes through the guardrail first. |
+| Claude to point at code | It can open a file at a line range and select it, or open a before/after diff. |
+
+The eight tools Claude gets: `editor_state`, `open_file`, `get_diagnostics`,
+`terminal_run`, `terminal_read`, `terminal_list`, `debug_output`, `show_diff`.
+
+**Security.** The extension's server listens on `127.0.0.1` only (never your network),
+requires the private token from `~/.claude/cortex/sidekick.json` on every request, and
+refuses any request that comes from a web page in your browser. Treat that file like a
+password: anyone with it can run commands in your VS Code.
+
+**Good to know.**
+- Open VS Code before (or while) you use Claude. If Claude says the `vscode` tools failed,
+  open VS Code and ask again; in the terminal version you can also run `/mcp` to reconnect.
+- With several VS Code windows open, the first one owns the connection; the others show
+  **Sidekick (standby)** and take over when it closes.
+- Reading terminal output needs VS Code's shell integration, which is on by default for
+  bash, zsh, fish and PowerShell.
+- On PowerShell, the exit code VS Code reports is 0 for success and 1 for any failure, not
+  the program's own number.
+- Commands: **Cortex Sidekick: Review Claude's edits**, **Accept all**, **Status**, and
+  **Copy setup command** (re-registers the MCP server if you ever need to).
 
 ---
 
@@ -341,6 +401,8 @@ edited is lost. Delete that folder once you're sure. Restart Claude Code afterwa
 | `node: command not found` in hook errors | Node isn't on the PATH that Claude Code sees. Install Node, then restart your terminal **and** Claude Code. |
 | Something got blocked and you meant it | The message names the rule. Run the command yourself in a terminal, or edit `guardrail.js`. Every block is logged in `~/.claude/cortex/state/guardrail-blocked.log`. |
 | `settings.json is not valid JSON` | The installer refuses to touch a broken file. Fix it (or restore a `.bak-*` copy), then re-run. |
+| Claude says the `vscode` tools are unavailable | Open VS Code, then retry (or `/mcp` → reconnect in the terminal version). Check the status bar shows **Sidekick**, not **(standby)**. Still failing: in VS Code run **Cortex Sidekick: Copy setup command**, paste it into a terminal, restart Claude. |
+| Claude's edits don't open in VS Code | The edit hook only fires after a Claude Code restart following install. Also check the VS Code setting **cortexSidekick.followEdits** is `claude`. |
 | Something changed but Claude doesn't notice | Claude Code reads its environment at startup. Restart it before assuming it's broken. |
 
 ## Privacy

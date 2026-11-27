@@ -1,0 +1,86 @@
+{
+  "name": "cortex-sidekick",
+  "displayName": "Cortex Sidekick",
+  "description": "Lets the Claude Code desktop app work beside you in VS Code: live edit highlights with one-click revert, Problems panel and terminal output for Claude, and a visible terminal it can run commands in. Local MCP server, loopback only.",
+  "version": "0.1.0",
+  "publisher": "cortex-template",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "categories": [
+    "Other",
+    "AI"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cortexSidekick.review",
+        "title": "Cortex Sidekick: Review Claude's edits"
+      },
+      {
+        "command": "cortexSidekick.acceptAll",
+        "title": "Cortex Sidekick: Accept all Claude edits"
+      },
+      {
+        "command": "cortexSidekick.status",
+        "title": "Cortex Sidekick: Show connection status"
+      },
+      {
+        "command": "cortexSidekick.copySetup",
+        "title": "Cortex Sidekick: Copy Claude Code setup command"
+      }
+    ],
+    "configuration": {
+      "title": "Cortex Sidekick",
+      "properties": {
+        "cortexSidekick.port": {
+          "type": "number",
+          "default": 7341,
+          "description": "Loopback port for the MCP server. Must match the URL registered with `claude mcp add`."
+        },
+        "cortexSidekick.followEdits": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "any",
+            "off"
+          ],
+          "enumDescriptions": [
+            "Show edits Claude reports through the Cortex hook (precise; recommended).",
+            "Also show ANY change made to workspace files outside VS Code (formatters and build tools included).",
+            "Never open or highlight files automatically."
+          ],
+          "default": "claude"
+        },
+        "cortexSidekick.highlightSeconds": {
+          "type": "number",
+          "default": 8,
+          "description": "How long changed lines stay highlighted. 0 = until you accept or revert."
+        },
+        "cortexSidekick.terminalName": {
+          "type": "string",
+          "default": "Claude",
+          "description": "Name of the terminal Claude runs commands in."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "package": "node build.mjs && vsce package --no-dependencies --allow-missing-repository --skip-license --out dist/cortex-sidekick.vsix"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@types/node": "20.17.6",
+    "@types/vscode": "1.93.0",
+    "@vscode/vsce": "3.2.1",
+    "esbuild": "0.24.0",
+    "typescript": "5.6.3",
+    "zod": "3.25.76"
+  }
+}
