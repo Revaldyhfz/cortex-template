@@ -86,6 +86,19 @@ brew install node git
 
 (No Homebrew? Get Node from <https://nodejs.org> and run `xcode-select --install` for git.)
 
+**On a Mac, good to know:**
+- Using the **Claude desktop app** only? You can skip the `curl … install.sh` line. The
+  installer finds the Claude Code binary that ships inside the app.
+- VS Code does **not** need its `code` shell command. The installer finds VS Code in
+  `/Applications` by itself.
+- Apps opened from the Dock don't see your terminal's PATH, so hooks would fail to find a
+  Homebrew or nvm `node`. The installer writes the full path to `node` into each hook to
+  avoid this. If you later move Node (say, switch nvm versions and delete the old one), run
+  `node install.mjs` again to refresh those paths.
+- The guardrail has Mac rules too. It blocks wiping `~/Library`, `~/Documents` or
+  `~/Desktop` and reading passwords out of the Keychain. It asks before turning off System
+  Integrity Protection, Gatekeeper, FileVault or the firewall.
+
 **Linux (Ubuntu/Debian shown):**
 
 ```bash
@@ -191,7 +204,7 @@ those files control Claude's behaviour, so changing them always needs your click
    hook were not loaded, this would just fail, because the folder has no remote.)
 
 Optional, for the curious: `node test/smoke.mjs` runs an end-to-end test in a throwaway
-folder (your real setup is untouched). It should print `61 passed, 0 failed`. It uses fake `code` and `claude` commands, so
+folder (your real setup is untouched). It should print `65 passed, 0 failed`. It uses fake `code` and `claude` commands, so
 your real VS Code and Claude settings are untouched.
 
 ---

@@ -175,7 +175,28 @@ if (fs.existsSync(settingsPath) && readJson(settingsPath, null) === null) {
   process.exit(1);
 }
 const before = JSON.stringify(settings);
-const hookCmd = (script) => `node "${fwd(path.join(CLAUDE, script))}"`;
+/** First executable called `name` on PATH, as written there (a stable symlink, not its target). */
+function findOnPath(name) {
+  const exts = process.platform === "win32" ? (process.env.PATHEXT || ".EXE;.CMD;.BAT").split(";") : [""];
+  for (const dir of (process.env.PATH || "").split(path.delimiter).filter(Boolean)) {
+    for (const ext of exts) {
+      const p = path.join(dir, name + ext.toLowerCase());
+      try {
+        if (fs.statSync(p).isFile()) {
+          if (process.platform !== "win32") fs.accessSync(p, fs.constants.X_OK);
+          return p;
+        }
+      } catch {}
+    }
+  }
+  return null;
+}
+// macOS/Linux: hooks get an ABSOLUTE node path. Apps started from the Dock or Finder
+// (the Claude desktop app, VS Code) do not inherit the shell's PATH, so Homebrew's or
+// nvm's `node` can be invisible to them and every hook would fail silently.
+// Windows installers put node on the system PATH, so plain `node` is the robust choice.
+const NODE = process.platform === "win32" ? "node" : `"${findOnPath("node") || process.execPath}"`;
+const hookCmd = (script) => `${NODE} "${fwd(path.join(CLAUDE, script))}"`;
 
 const WANT = [
   { event: "Stop", script: "cortex/cortex-sync.js", timeout: 120, statusMessage: "Cortex: capturing session" },
@@ -238,7 +259,23 @@ function sh(cmd, argv) {
     : spawnSync(cmd, argv, { encoding: "utf8", timeout: 120000 });
   return { ok: r.status === 0, out: `${r.stdout || ""}${r.stderr || ""}`.trim(), missing: r.error?.code === "ENOENT" || r.status === 127 || /not recognized|not found/i.test(r.stderr || "") };
 }
-const has = (cmd) => sh(cmd, ["--version"]).ok;
+const has = (cmd) => !!cmd && sh(cmd, ["--version"]).ok;
+
+/** VS Code's CLI: on PATH, or inside the app bundle on macOS (the PATH command is a manual step there). */
+function findCode() {
+  if (has("code")) return "code";
+  const bundles = [
+    "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+    path.join(HOME, "Applications", "Visual Studio Code.app", "Contents", "Resources", "app", "bin", "code"),
+  ];
+  return process.platform === "darwin" ? bundles.find((p) => fs.existsSync(p) && has(p)) || null : null;
+}
+/** Claude Code's CLI: on PATH, or the binary bundled with the Claude desktop app (which sets CLAUDE_CODE_EXECPATH). */
+function findClaude() {
+  if (has("claude")) return "claude";
+  const bundled = process.env.CLAUDE_CODE_EXECPATH;
+  return bundled && fs.existsSync(bundled) && has(bundled) ? bundled : null;
+}
 
 const sidekick = { status: "skipped (--no-vscode)", notes: [] };
 const VSIX = path.join(REPO, "vscode-sidekick", "dist", "cortex-sidekick.vsix");
@@ -252,24 +289,28 @@ if (!NO_VSCODE) {
       fs.writeFileSync(connPath, JSON.stringify(conn, null, 2) + "\n", { mode: 0o600 }); // BOM-less
     }
   }
-  const haveCode = has("code");
-  const haveClaude = has("claude");
-  if (!haveCode) sidekick.notes.push("VS Code's `code` command was not found. Install VS Code, run \"Shell Command: Install 'code' command in PATH\" (macOS) if needed, then re-run the installer.");
+  const CODE = findCode();
+  const CLAUDE_BIN = findClaude();
+  const haveCode = !!CODE;
+  const haveClaude = !!CLAUDE_BIN;
+  if (CODE) manifest.codeBin = CODE;
+  if (CLAUDE_BIN) manifest.claudeBin = CLAUDE_BIN;
+  if (!haveCode) sidekick.notes.push("VS Code was not found. Install it (https://code.visualstudio.com), open it once, then re-run the installer.");
   else if (!fs.existsSync(VSIX)) sidekick.notes.push(`Extension package missing at ${fwd(VSIX)}; run \`npm run package\` in vscode-sidekick/.`);
   else if (!DRY) {
-    const r = sh("code", ["--install-extension", VSIX, "--force"]);
+    const r = sh(CODE, ["--install-extension", VSIX, "--force"]);
     if (r.ok) manifest.vscodeExtension = true;
     else sidekick.notes.push("Installing the VS Code extension failed: " + r.out.slice(0, 300));
   }
-  if (!haveClaude) sidekick.notes.push("The `claude` command was not found, so the MCP server was not registered. Re-run the installer from a terminal where `claude --version` works.");
+  if (!haveClaude) sidekick.notes.push("Claude Code's `claude` command was not found, so the MCP server was not registered. Run the installer from inside Claude Code (it finds its own binary), or from a terminal where `claude --version` works.");
   else if (!DRY) {
     const url = `http://127.0.0.1:${conn.port}/mcp`;
-    const existing = sh("claude", ["mcp", "get", "vscode"]);
+    const existing = sh(CLAUDE_BIN, ["mcp", "get", "vscode"]);
     if (existing.ok && !existing.out.includes(url) && !FORCE) {
       sidekick.notes.push("An MCP server named \"vscode\" already exists and is not the Sidekick; left it alone (re-run with --force to replace it).");
     } else {
-      if (existing.ok) sh("claude", ["mcp", "remove", "vscode", "-s", "user"]);
-      const r = sh("claude", ["mcp", "add", "--scope", "user", "--transport", "http", "vscode", url, "--header", `Authorization: Bearer ${conn.token}`]);
+      if (existing.ok) sh(CLAUDE_BIN, ["mcp", "remove", "vscode", "-s", "user"]);
+      const r = sh(CLAUDE_BIN, ["mcp", "add", "--scope", "user", "--transport", "http", "vscode", url, "--header", `Authorization: Bearer ${conn.token}`]);
       if (r.ok) manifest.mcpServer = true;
       else sidekick.notes.push("Registering the MCP server failed: " + r.out.slice(0, 300));
     }

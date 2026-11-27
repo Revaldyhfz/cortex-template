@@ -1,0 +1,66 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  suites:
+    name: ${{ matrix.os }} / node ${{ matrix.node }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+        node: [18, 22]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Smoke test (install, every hook, uninstall, in a throwaway home)
+        run: node test/smoke.mjs
+      - name: Guardrail cases
+        run: node test/guardrail.test.mjs
+      - name: Autonomous mode
+        run: node test/autonomous.test.mjs
+      - name: Installer dry run against the runner's real home
+        run: node install.mjs --dry-run --no-open
+
+  sidekick:
+    name: VS Code Sidekick e2e / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install VS Code (macOS)
+        if: runner.os == 'macOS'
+        run: brew install --cask visual-studio-code
+      - name: Install VS Code and a virtual display (Linux)
+        if: runner.os == 'Linux'
+        run: sudo snap install code --classic && sudo apt-get update && sudo apt-get install -y xvfb
+      - name: Build the extension
+        working-directory: vscode-sidekick
+        run: npm ci && npm run package
+      - name: Packaged .vsix matches the committed one's file list
+        working-directory: vscode-sidekick
+        run: unzip -l dist/cortex-sidekick.vsix
+      - name: End-to-end against a real VS Code (macOS)
+        if: runner.os == 'macOS'
+        working-directory: vscode-sidekick
+        run: node test/run-e2e.mjs
+      - name: End-to-end against a real VS Code (Linux)
+        if: runner.os == 'Linux'
+        working-directory: vscode-sidekick
+        run: xvfb-run -a node test/run-e2e.mjs

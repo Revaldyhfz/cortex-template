@@ -70,8 +70,8 @@ function sh(cmd, argv) {
   return r.status === 0;
 }
 const external = [];
-if (manifest.mcpServer) external.push(`MCP server "vscode": ${DRY ? "would remove" : sh("claude", ["mcp", "remove", "vscode", "-s", "user"]) ? "removed" : "could not remove (run: claude mcp remove vscode -s user)"}`);
-if (manifest.vscodeExtension) external.push(`VS Code extension: ${DRY ? "would remove" : sh("code", ["--uninstall-extension", "cortex-template.cortex-sidekick"]) ? "removed" : "could not remove (run: code --uninstall-extension cortex-template.cortex-sidekick)"}`);
+if (manifest.mcpServer) external.push(`MCP server "vscode": ${DRY ? "would remove" : sh(manifest.claudeBin || "claude", ["mcp", "remove", "vscode", "-s", "user"]) ? "removed" : "could not remove (run: claude mcp remove vscode -s user)"}`);
+if (manifest.vscodeExtension) external.push(`VS Code extension: ${DRY ? "would remove" : sh(manifest.codeBin || "code", ["--uninstall-extension", "cortex-template.cortex-sidekick"]) ? "removed" : "could not remove (run: code --uninstall-extension cortex-template.cortex-sidekick)"}`);
 
 // 3. Move every file the installer created, plus the engine's own state folder.
 const moved = [];

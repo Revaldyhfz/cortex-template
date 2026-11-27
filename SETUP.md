@@ -13,9 +13,12 @@ Run each and note the result. Do not install anything yet.
 
 - `node --version` — needs 18 or newer.
 - `git --version`
-- `code --version` — VS Code's command-line launcher. Optional; without it the VS Code
+- `code --version` — VS Code's command-line launcher. Optional: on macOS the installer
+  also finds VS Code in `/Applications` without it. If VS Code is not installed at all, the
   Sidekick is skipped.
-- `claude --version` — needed to register the Sidekick's MCP server.
+- `claude --version` — not required. When you run inside the Claude desktop app, the
+  installer uses the app's own bundled binary (`CLAUDE_CODE_EXECPATH`) to register the
+  Sidekick.
 
 If Node or git is missing, tell the user exactly how to install it for their OS and stop
 until they confirm:
@@ -26,9 +29,10 @@ until they confirm:
 | macOS | `brew install node` (or the installer from nodejs.org) | `xcode-select --install` |
 | Linux | the NodeSource or distro package for Node 20+ | `sudo apt install git` (or the distro equivalent) |
 
-If VS Code is installed but `code` is not found: on macOS, ask them to open VS Code, press
-Cmd+Shift+P and run **Shell Command: Install 'code' command in PATH**. On Windows, it is
-usually a PATH refresh — ask them to restart the terminal.
+On macOS, if `node` was just installed with Homebrew, it lives in `/opt/homebrew/bin` (Apple
+silicon) or `/usr/local/bin` (Intel). If your shell cannot see it yet, call it by that full
+path. The installer writes the absolute node path into every hook, so hooks work even
+though apps started from the Dock do not inherit the shell's PATH.
 
 ## 2. Get the repository
 

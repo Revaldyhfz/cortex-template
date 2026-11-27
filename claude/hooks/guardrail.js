@@ -61,6 +61,9 @@ const NUKE_TARGETS = [
   /(^|\s)['"]?\/(home|Users)\/[^\/\s"']+\/?\*?['"]?(\s|$)/, // /home/<user>  /Users/<user>
   /(^|\s)['"]?(\$HOME|\$\{HOME\}|~\/?\*?)['"]?(\s|$)/, // $HOME  ${HOME}  ~/  ~/*
   /(^|\s)['"]?\/\*['"]?(\s|$)/, // /*
+  // The home folders that hold irreplaceable data (macOS app data lives in ~/Library).
+  // A path INSIDE them (~/Library/Caches/foo) is ordinary work.
+  /(^|\s)['"]?(~|\$HOME|\$\{HOME\}|\/Users\/[^\/\s"']+|\/home\/[^\/\s"']+)\/(Library|Documents|Desktop|Pictures)\/?\*?['"]?(\s|$)/,
 ];
 
 // A pipe into an interpreter that will EXECUTE what it receives.
@@ -184,6 +187,22 @@ const RULES = [
           ),
   },
   {
+    id: "os-security-off",
+    decision: "ask",
+    why: "This turns off a macOS security protection (System Integrity Protection, Gatekeeper, the quarantine check on a downloaded app, FileVault or the firewall). Approve only if you meant to.",
+    test: (tool, i) =>
+      !isShell(tool)
+        ? false
+        : splitStatements(i.command || "").some(
+            (s) =>
+              (cmd("csrutil").test(s) && /\b(disable|authenticated-root\s+disable)\b/.test(s)) ||
+              (cmd("spctl").test(s) && /--(master|global)-disable\b/.test(s)) ||
+              (cmd("xattr").test(s) && /com\.apple\.quarantine/.test(s) && /\s-[a-zA-Z]*[dc]/.test(s)) ||
+              (cmd("fdesetup").test(s) && /\bdisable\b/.test(s)) ||
+              (/socketfilterfw\b/.test(s) && /--setglobalstate\s+off\b/.test(s))
+          ),
+  },
+  {
     // On macOS/Linux Claude Code can run Bash in a sandbox. A failed command may be
     // retried OUTSIDE it; without this rule that retry would be silent in bypass mode.
     id: "sandbox-escape",
@@ -200,6 +219,16 @@ const RULES = [
       const c = isShell(tool) ? (i.command || "").replace(/\\/g, "/") : "";
       const target = p || c;
       if (!target) return false;
+      // macOS Keychain: printing a stored password (-w / -g) or exporting the keychain.
+      if (
+        c &&
+        splitStatements(c).some(
+          (s) =>
+            (cmd("security").test(s) && /\bfind-(generic|internet)-password\b/.test(s) && /\s-[a-zA-Z]*[wg]/.test(s)) ||
+            (cmd("security").test(s) && /\b(dump-keychain|export)\b/.test(s))
+        )
+      )
+        return true;
       return (
         /\/\.ssh\/id_(rsa|dsa|ecdsa|ed25519)(?!\.pub)/i.test(target) ||
         /\.claude\/\.credentials\.json/i.test(target) ||

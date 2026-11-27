@@ -27,14 +27,23 @@ fs.writeFileSync(
   path.join(BIN, "shim.cjs"),
   'const a = process.argv.slice(2); require("fs").appendFileSync(process.env.CLI_LOG, a.join(" ") + "\\n"); process.exit(a[1] === "mcp" && a[2] === "get" ? 1 : 0);'
 );
-for (const name of ["code", "claude"]) {
-  if (process.platform === "win32") fs.writeFileSync(path.join(BIN, name + ".cmd"), `@"${process.execPath}" "%~dp0shim.cjs" ${name} %*
-`);
-  else fs.writeFileSync(path.join(BIN, name), `#!/bin/sh
-exec "${process.execPath}" "$(dirname "$0")/shim.cjs" ${name} "$@"
-`, { mode: 0o755 });
+/** Write a fake CLI called `name` into `dir`; returns its path. */
+function shim(dir, name) {
+  fs.mkdirSync(dir, { recursive: true });
+  const js = fwd(path.join(BIN, "shim.cjs"));
+  if (process.platform === "win32") {
+    const p = path.join(dir, name + ".cmd");
+    fs.writeFileSync(p, `@"${process.execPath}" "${js}" ${name} %*\r\n`);
+    return p;
+  }
+  const p = path.join(dir, name);
+  fs.writeFileSync(p, `#!/bin/sh\nexec "${process.execPath}" "${js}" ${name} "$@"\n`, { mode: 0o755 });
+  return p;
 }
-const env = { ...process.env, HOME, USERPROFILE: HOME, GUARDRAIL_LOG: path.join(TMP, "guard.log"), CLI_LOG };
+shim(BIN, "code");
+shim(BIN, "claude");
+// Never let the installer reach the REAL Claude binary that the desktop app advertises.
+const env = { ...process.env, HOME, USERPROFILE: HOME, GUARDRAIL_LOG: path.join(TMP, "guard.log"), CLI_LOG, CLAUDE_CODE_EXECPATH: path.join(TMP, "no-such-claude") };
 const pathKey = Object.keys(env).find((k) => k.toUpperCase() === "PATH") || "PATH";
 env[pathKey] = BIN + path.delimiter + env[pathKey];
 delete env.CLAUDE_CONFIG_DIR;
@@ -70,6 +79,14 @@ const count = () =>
   Object.values(JSON.parse(fs.readFileSync(path.join(CLAUDE, "settings.json"), "utf8")).hooks || {}).flat().length;
 ok(count() === 10, "nine Cortex hook groups merged beside the user's own", `got ${count()}`);
 ok(settings.autoMemoryDirectory === "~/.claude/memory", "autoMemoryDirectory set");
+const ourCmds = Object.values(settings.hooks).flat().flatMap((g) => g.hooks).map((h) => h.command).filter((c) => c !== "echo mine");
+ok(
+  process.platform === "win32"
+    ? ourCmds.every((c) => c.startsWith('node "'))
+    : ourCmds.every((c) => /^"\/[^"]*node" "/.test(c)),
+  process.platform === "win32" ? "hook commands use node from PATH (Windows)" : "hook commands use an absolute node path (apps opened from the Dock lack the shell PATH)",
+  ourCmds[0]
+);
 for (const f of ["CLAUDE.md", "rules/00-answering.md", "rules/03-studio.md", "skills/boot/SKILL.md", "skills/studio/SKILL.md", "skills/aw/SKILL.md", "hooks/guardrail.js", "hooks/sidekick-notify.js", "autonomous/autonomous.js", "cortex/cortex-sync.js", "memory/MEMORY.md"])
   ok(fs.existsSync(path.join(CLAUDE, f)), `installed ${f}`);
 ok(fs.existsSync(path.join(VAULT, "Cortex", "Knowledge", "PREFERENCES.md")), "vault skeleton created");
@@ -176,6 +193,27 @@ ok(JSON.stringify(after.hooks) === JSON.stringify({ Stop: [{ hooks: [{ type: "co
 ok(fs.readFileSync(path.join(CLAUDE, "CLAUDE.md"), "utf8") === "# my own notes\n", "uninstall left the user's own CLAUDE.md");
 ok(!fs.existsSync(path.join(CLAUDE, "rules", "00-answering.md")) && !fs.existsSync(path.join(CLAUDE, "cortex")), "uninstall moved installed files out");
 ok(fs.existsSync(path.join(VAULT, "Cortex", "Sessions", sessions[0] || "x")), "uninstall left the vault alone");
+
+// ---- desktop-app user: no `claude` on PATH, only the binary the Claude app advertises
+const HOME2 = path.join(TMP, "home2");
+fs.mkdirSync(HOME2);
+const BIN2 = path.join(TMP, "bin2");
+shim(BIN2, "code");
+const bundled = shim(path.join(TMP, "Claude App", "claude-code"), "claude");
+const sysPath =
+  process.platform === "win32"
+    ? [path.join(process.env.SystemRoot || "C:\\Windows", "System32"), process.env.SystemRoot || "C:\\Windows"]
+    : ["/usr/bin", "/bin"];
+const env2 = { ...env, HOME: HOME2, USERPROFILE: HOME2, CLAUDE_CODE_EXECPATH: bundled };
+env2[pathKey] = [BIN2, path.dirname(process.execPath), ...sysPath].join(path.delimiter);
+fs.writeFileSync(CLI_LOG, "");
+r = spawnSync(process.execPath, [path.join(REPO, "install.mjs"), "--vault", path.join(TMP, "vault2"), "--no-open"], { env: env2, encoding: "utf8" });
+ok(r.status === 0 && /claude mcp add --scope user/.test(cliLog()), "desktop-app user: MCP registered through the app's bundled claude binary", r.stdout.slice(-400) + cliLog());
+const m2 = JSON.parse(fs.readFileSync(path.join(HOME2, ".claude", "cortex", "install-manifest.json"), "utf8"));
+ok(m2.claudeBin === bundled && m2.mcpServer === true, "manifest remembers which claude binary to use for uninstall", JSON.stringify({ claudeBin: m2.claudeBin, mcp: m2.mcpServer }));
+fs.writeFileSync(CLI_LOG, "");
+r = spawnSync(process.execPath, [path.join(REPO, "uninstall.mjs")], { env: env2, encoding: "utf8" });
+ok(r.status === 0 && /claude mcp remove vscode/.test(cliLog()), "desktop-app user: uninstall removes the MCP server via the same binary", cliLog());
 
 fs.rmSync(TMP, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
