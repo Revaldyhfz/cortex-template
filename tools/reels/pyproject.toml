@@ -2,7 +2,7 @@
 name = "cortex-reels"
 version = "0.2.0"
 description = "Local MCP server that lets Claude watch short videos: caption, transcript, frames."
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "curl-cffi>=0.16.3",
     "faster-whisper>=1.2.1",
